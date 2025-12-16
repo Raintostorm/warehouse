@@ -25,14 +25,9 @@ function initSocketIO(httpServer) {
     // Authentication middleware
     io.use(async (socket, next) => {
         try {
-            if (!JWT_SECRET || JWT_SECRET === 'your-secret-key-change-in-production') {
-                console.warn('⚠️ JWT_SECRET is using default value. Please set JWT_SECRET in .env for production!');
-            }
-
             const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
 
             if (!token) {
-                console.warn('⚠️ Socket connection attempt without token');
                 return next(new Error('Authentication error: No token provided'));
             }
 
@@ -43,10 +38,7 @@ function initSocketIO(httpServer) {
 
             next();
         } catch (error) {
-            console.error('❌ Socket authentication error:', error.message);
-            if (error.message.includes('secret') || error.message.includes('invalid signature')) {
-                console.error('   Token verification failed. Make sure JWT_SECRET matches the one used to sign tokens.');
-            }
+            // Authentication failed, error sẽ được trả về cho client
             next(new Error('Authentication error: Invalid token'));
         }
     });

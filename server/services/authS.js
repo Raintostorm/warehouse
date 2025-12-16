@@ -16,7 +16,7 @@ if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
 }
 
 if (!JWT_SECRET) {
-    console.warn('⚠️  WARNING: JWT_SECRET not set, using default. This is insecure for production!');
+    console.warn('WARNING: JWT_SECRET not set, using default. This is insecure for production!');
 }
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const PASSWORD_RESET_TOKEN_EXP_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_EXP_MINUTES) || 15;

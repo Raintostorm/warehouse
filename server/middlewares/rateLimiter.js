@@ -38,12 +38,9 @@ const createStore = (prefix) => {
                 },
                 prefix: `rl:${prefix}:`,
             });
-        } else {
-            console.warn(`⚠️  Redis not available, using memory store for ${prefix}`);
         }
     } catch (error) {
-        console.warn(`⚠️  Redis store error for ${prefix}:`, error.message);
-        console.warn(`   Will use memory store (will reset on server restart)`);
+        // Redis không available, sẽ fallback về memory store tự động
     }
     return undefined; // Fallback về memory store
 };

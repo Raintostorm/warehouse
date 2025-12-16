@@ -192,7 +192,7 @@ const TABLES = {
 };
 
 async function createTables() {
-    console.log('📦 Đang tạo tables...\n');
+    console.log('Dang tao tables...\n');
 
     const tableOrder = [
         'users',
@@ -215,9 +215,9 @@ async function createTables() {
     for (const tableName of tableOrder) {
         try {
             await db.query(TABLES[tableName]);
-            console.log(`✅ Đã tạo/kiểm tra table: ${tableName}`);
+            console.log(`Da tao/kiem tra table: ${tableName}`);
         } catch (error) {
-            console.error(`❌ Lỗi khi tạo table ${tableName}:`, error.message);
+            console.error(`Loi khi tao table ${tableName}:`, error.message);
         }
     }
 }
@@ -273,7 +273,7 @@ async function seedData() {
             const orderCount = await db.query('SELECT COUNT(*) as count FROM orders');
             console.log(`   - Orders: ${orderCount.rows[0].count} records`);
         }
-        console.log('\n✅ Giữ nguyên data hiện có. Bỏ qua seed data.\n');
+        console.log('\nGiu nguyen data hien co. Bo qua seed data.\n');
         return;
     }
 
@@ -293,7 +293,7 @@ async function seedData() {
                     'INSERT INTO roles (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
                     [role.id, role.name]
                 );
-                console.log(`✅ Đã seed role: ${role.name}`);
+                console.log(`Da seed role: ${role.name}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
                     console.error(`❌ Lỗi seed role ${role.name}:`, error.message);
@@ -358,7 +358,7 @@ async function seedData() {
                      ON CONFLICT (id) DO NOTHING`,
                     [user.id, user.fullname, user.email, user.password, user.number, user.address, user.actor]
                 );
-                console.log(`✅ Đã seed user: ${user.email}`);
+                console.log(`Da seed user: ${user.email}`);
 
                 // Assign roles
                 if (user.id === 'U001') {
@@ -399,7 +399,7 @@ async function seedData() {
                     'INSERT INTO suppliers (id, name, address, phone) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
                     [supplier.id, supplier.name, supplier.address, supplier.phone]
                 );
-                console.log(`✅ Đã seed supplier: ${supplier.name}`);
+                console.log(`Da seed supplier: ${supplier.name}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
                     console.error(`❌ Lỗi seed supplier:`, error.message);
@@ -438,7 +438,7 @@ async function seedData() {
                      VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
                     [product.id, product.name, product.type, product.unit, product.number, product.price, product.supplier_id]
                 );
-                console.log(`✅ Đã seed product: ${product.name}`);
+                console.log(`Da seed product: ${product.name}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
                     console.error(`❌ Lỗi seed product:`, error.message);
@@ -511,7 +511,7 @@ async function seedData() {
                      VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
                     [warehouse.id, warehouse.name, warehouse.address, warehouse.size, warehouse.type, warehouse.image, warehouse.started_date]
                 );
-                console.log(`✅ Đã seed warehouse: ${warehouse.name} (${warehouse.type})`);
+                console.log(`Da seed warehouse: ${warehouse.name} (${warehouse.type})`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
                     console.error(`❌ Lỗi seed warehouse:`, error.message);
@@ -611,10 +611,10 @@ async function seedData() {
                      VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
                     [order.id, order.type, order.date, order.user_id, order.customer_name, order.total]
                 );
-                console.log(`✅ Đã seed order: ${order.id}`);
+                console.log(`Da seed order: ${order.id}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed order:`, error.message);
+                    console.error(`Loi seed order:`, error.message);
                 }
             }
         }
@@ -659,7 +659,7 @@ async function seedData() {
                 console.log(`✅ Đã seed order detail: ${od.order_id} - ${od.product_id}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed order detail:`, error.message);
+                    console.error(`Loi seed order detail:`, error.message);
                 }
             }
         }
@@ -698,7 +698,7 @@ async function seedData() {
                 console.log(`✅ Đã seed product detail: ${pd.pid} - ${pd.wid}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed product detail:`, error.message);
+                    console.error(`Loi seed product detail:`, error.message);
                 }
             }
         }
@@ -720,7 +720,7 @@ async function seedData() {
                      VALUES ($1, $2, $3, $4, $5) ON CONFLICT (wid, uid) DO NOTHING`,
                     [wm.wid, wm.uid, wm.action, wm.date, wm.note]
                 );
-                console.log(`✅ Đã seed warehouse management: ${wm.wid} - ${wm.uid}`);
+                console.log(`Da seed warehouse management: ${wm.wid} - ${wm.uid}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
                     console.error(`❌ Lỗi seed warehouse management:`, error.message);
@@ -745,10 +745,10 @@ async function seedData() {
                      VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (pid, uid) DO NOTHING`,
                     [pm.pid, pm.uid, pm.action, pm.number, pm.date, pm.note]
                 );
-                console.log(`✅ Đã seed product management: ${pm.pid} - ${pm.uid}`);
+                console.log(`Da seed product management: ${pm.pid} - ${pm.uid}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed product management:`, error.message);
+                    console.error(`Loi seed product management:`, error.message);
                 }
             }
         }
@@ -776,7 +776,7 @@ async function seedData() {
                 console.log(`✅ Đã seed order warehouse: ${ow.wid} - ${ow.oid}`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed order warehouse:`, error.message);
+                    console.error(`Loi seed order warehouse:`, error.message);
                 }
             }
         }
@@ -796,7 +796,7 @@ async function seedData() {
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
     } catch (error) {
-        console.error('❌ Lỗi khi seed data:', error.message);
+        console.error('Loi khi seed data:', error.message);
         throw error;
     }
 }
@@ -815,14 +815,14 @@ async function dropAllTables() {
         for (const table of tables.rows) {
             try {
                 await db.query(`DROP TABLE IF EXISTS ${table.tablename} CASCADE`);
-                console.log(`✅ Đã xóa table: ${table.tablename}`);
+                console.log(`Da xoa table: ${table.tablename}`);
             } catch (error) {
-                console.error(`❌ Lỗi khi xóa table ${table.tablename}:`, error.message);
+                console.error(`Loi khi xoa table ${table.tablename}:`, error.message);
             }
         }
-        console.log('\n✅ Đã xóa tất cả tables\n');
+        console.log('\nDa xoa tat ca tables\n');
     } catch (error) {
-        console.error('❌ Lỗi khi xóa tables:', error.message);
+        console.error('Loi khi xoa tables:', error.message);
         throw error;
     }
 }
@@ -850,7 +850,7 @@ async function initDatabase() {
         await seedData();
 
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.log('✅ Hoàn thành khởi tạo database!');
+        console.log('Hoan thanh khoi tao database!');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         // Only exit if called directly (not from server.js)
@@ -858,7 +858,7 @@ async function initDatabase() {
             process.exit(0);
         }
     } catch (error) {
-        console.error('\n❌ Lỗi khi khởi tạo database:', error.message);
+        console.error('\nLoi khi khoi tao database:', error.message);
         if (error.stack) {
             console.error('Stack:', error.stack);
         }

@@ -7,7 +7,6 @@ const redis = new Redis({
     retryStrategy: (times) => {
         // Nếu retry quá nhiều, dừng lại (không crash app)
         if (times > 10) {
-            console.warn('⚠️  Redis connection failed after multiple retries, continuing without Redis');
             return null; // Dừng retry
         }
         const delay = Math.min(times * 50, 2000);
@@ -22,16 +21,13 @@ redis.on('connect', () => {
 });
 
 redis.on('error', (err) => {
-    // Chỉ log warning, không crash app
-    if (err.code !== 'ECONNREFUSED') {
-        console.warn('⚠️  Redis error:', err.message);
-    }
     // Fallback: Nếu Redis down, app vẫn chạy được (không cache)
+    // Không log để tránh spam logs khi Redis không có sẵn
 });
 
 // Handle max retries error gracefully
 redis.on('close', () => {
-    console.warn('⚠️  Redis connection closed, continuing without Redis');
+    // Connection closed, app sẽ tiếp tục hoạt động
 });
 
 module.exports = redis;
