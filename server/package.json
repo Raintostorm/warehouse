@@ -3,7 +3,15 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:crud": "jest __tests__/crud.test.js",
+    "test:models": "jest __tests__/models",
+    "test:api": "jest __tests__/api",
+    "test:services": "jest __tests__/services",
+    "test:security": "jest __tests__/security",
+    "test:all": "jest --coverage --verbose",
     "start": "node server.js",
     "init": "node scripts/initDatabase.js",
     "init:db": "node scripts/initDatabase.js",
@@ -54,5 +62,9 @@
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0",
     "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "supertest": "^7.1.4"
   }
 }

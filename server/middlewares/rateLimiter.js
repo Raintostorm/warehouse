@@ -20,9 +20,13 @@ const formatTime = (ms) => {
 // Helper để tạo Redis store với fallback
 const createStore = (prefix) => {
     try {
-        // Kiểm tra Redis connection (ioredis không có .status, dùng .status thay vào đó)
-        // ioredis có thể check qua ping hoặc connection state
-        const isRedisReady = redis && typeof redis.ping === 'function';
+        // Kiểm tra Redis connection
+        // Trong test environment, redis có thể là null hoặc undefined
+        if (!redis) {
+            return undefined; // Fallback về memory store
+        }
+
+        const isRedisReady = typeof redis.ping === 'function';
 
         if (isRedisReady) {
             // Test connection với ping (async nhưng không await ở đây)
@@ -30,7 +34,10 @@ const createStore = (prefix) => {
             return new RedisStore({
                 sendCommand: (...args) => {
                     try {
-                        return redis.call(...args);
+                        if (redis && typeof redis.call === 'function') {
+                            return redis.call(...args);
+                        }
+                        throw new Error('Redis not available');
                     } catch (err) {
                         // Redis down, fallback sẽ xử lý
                         throw err;

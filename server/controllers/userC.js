@@ -50,15 +50,20 @@ const UserC = {
             };
             const user = await UserS.createUser(userData);
 
-            // Log audit
-            await auditLogger({
-                tableName: 'users',
-                recordId: user.id,
-                action: 'CREATE',
-                actor: actorInfo,
-                newData: user,
-                req
-            });
+            // Log audit (don't let audit logging errors break the response)
+            try {
+                await auditLogger({
+                    tableName: 'users',
+                    recordId: user.id,
+                    action: 'CREATE',
+                    actor: actorInfo,
+                    newData: user,
+                    req
+                });
+            } catch (auditError) {
+                // Log but don't fail the request
+                console.warn('Audit logging failed:', auditError.message);
+            }
 
             res.status(201).json({
                 success: true,
@@ -92,16 +97,21 @@ const UserC = {
             };
             const user = await UserS.updateUser(req.params.id, userData);
 
-            // Log audit
-            await auditLogger({
-                tableName: 'users',
-                recordId: user.id,
-                action: 'UPDATE',
-                actor: actorInfo,
-                oldData: oldUser,
-                newData: user,
-                req
-            });
+            // Log audit (don't let audit logging errors break the response)
+            try {
+                await auditLogger({
+                    tableName: 'users',
+                    recordId: user.id,
+                    action: 'UPDATE',
+                    actor: actorInfo,
+                    oldData: oldUser,
+                    newData: user,
+                    req
+                });
+            } catch (auditError) {
+                // Log but don't fail the request
+                console.warn('Audit logging failed:', auditError.message);
+            }
 
             res.json({
                 success: true,
@@ -271,27 +281,34 @@ const UserC = {
         try {
             const actorInfo = getActor(req);
             const userId = req.user.id; // Get from JWT token
-            const { oldPassword, newPassword } = req.body;
+            // Support both oldPassword and currentPassword
+            const { oldPassword, currentPassword, newPassword } = req.body;
+            const actualOldPassword = oldPassword || currentPassword;
 
-            if (!oldPassword || !newPassword) {
+            if (!actualOldPassword || !newPassword) {
                 return res.status(400).json({
                     success: false,
                     message: 'Old password and new password are required'
                 });
             }
 
-            await UserS.changePassword(userId, oldPassword, newPassword);
+            await UserS.changePassword(userId, actualOldPassword, newPassword);
 
-            // Log audit (don't log password)
-            await auditLogger({
-                tableName: 'users',
-                recordId: userId,
-                action: 'UPDATE',
-                actor: actorInfo,
-                oldData: { id: userId, action: 'password_change' },
-                newData: { id: userId, action: 'password_change' },
-                req
-            });
+            // Log audit (don't log password, don't let audit logging errors break the response)
+            try {
+                await auditLogger({
+                    tableName: 'users',
+                    recordId: userId,
+                    action: 'UPDATE',
+                    actor: actorInfo,
+                    oldData: { id: userId, action: 'password_change' },
+                    newData: { id: userId, action: 'password_change' },
+                    req
+                });
+            } catch (auditError) {
+                // Log but don't fail the request
+                console.warn('Audit logging failed:', auditError.message);
+            }
 
             res.json({
                 success: true,

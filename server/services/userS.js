@@ -7,7 +7,14 @@ const { sendWelcomeEmail } = require('../utils/emailService');
 
 const UserS = {
     findAll: async () => {
-        return await UsersM.findAll();
+        const users = await UsersM.findAll();
+        // Remove password from response
+        return users.map(user => {
+            const userWithoutPassword = { ...user };
+            delete userWithoutPassword.password;
+            delete userWithoutPassword.Password;
+            return userWithoutPassword;
+        });
     },
     findById: async (id) => {
         if (!id) {
@@ -17,21 +24,33 @@ const UserS = {
         if (!user) {
             throw new Error('User not found');
         }
-        return user;
+        // Remove password from response
+        const userWithoutPassword = { ...user };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     findByEmail: async (email) => {
         const user = await UsersM.findByEmail(email);
         if (!user) {
             throw new Error('User not found');
         }
-        return user;
+        // Remove password from response
+        const userWithoutPassword = { ...user };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     findByNumber: async (number) => {
         const user = await UsersM.findByNumber(number);
         if (!user) {
             throw new Error('User not found');
         }
-        return user;
+        // Remove password from response
+        const userWithoutPassword = { ...user };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     createUser: async (userData) => {
         if (!userData.id || !userData.fullname || !userData.email) {
@@ -62,12 +81,19 @@ const UserS = {
         if (newUser.email && newUser.fullname) {
             sendWelcomeEmail(newUser.email, newUser.fullname)
                 .catch(error => {
-                    console.error('Failed to send welcome email:', error);
+                    // Silently ignore email errors in tests
+                    if (process.env.NODE_ENV !== 'test') {
+                        console.error('Failed to send welcome email:', error);
+                    }
                     // Don't throw - user creation should succeed even if email fails
                 });
         }
 
-        return newUser;
+        // Remove password from response
+        const userWithoutPassword = { ...newUser };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     updateUser: async (id, userData) => {
         // Check user exists
@@ -88,7 +114,12 @@ const UserS = {
         }
 
         // Update user (không cần validation tất cả fields)
-        return await UsersM.update(id, userData);
+        const updatedUser = await UsersM.update(id, userData);
+        // Remove password from response
+        const userWithoutPassword = { ...updatedUser };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     deleteUser: async (id) => {
         const existingUser = await UsersM.findById(id);
@@ -109,7 +140,12 @@ const UserS = {
         }
 
         // Delete user - CASCADE will automatically delete related records
-        return await UsersM.delete(id);
+        const deletedUser = await UsersM.delete(id);
+        // Remove password from response
+        const userWithoutPassword = { ...deletedUser };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     bulkDeleteUsers: async (ids) => {
         if (!ids || ids.length === 0) {
@@ -163,7 +199,12 @@ const UserS = {
             }
         }
 
-        return await UsersM.update(id, updateData);
+        const updatedUser = await UsersM.update(id, updateData);
+        // Remove password from response
+        const userWithoutPassword = { ...updatedUser };
+        delete userWithoutPassword.password;
+        delete userWithoutPassword.Password;
+        return userWithoutPassword;
     },
     changePassword: async (id, oldPassword, newPassword) => {
         if (!oldPassword || !newPassword) {

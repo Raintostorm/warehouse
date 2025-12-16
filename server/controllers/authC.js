@@ -102,7 +102,10 @@ const AuthC = {
             });
         } catch (error) {
             let statusCode = 500;
-            if (error.message.includes('Invalid or expired reset token')) {
+            const errorMessage = error.message || '';
+
+            if (errorMessage.includes('Invalid or expired reset token') ||
+                errorMessage.includes('Token and new password are required')) {
                 statusCode = 400;
             }
 
