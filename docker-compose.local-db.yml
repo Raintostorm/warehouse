@@ -1,0 +1,60 @@
+# Docker Compose cho việc sử dụng PostgreSQL local (không tạo container)
+# Sử dụng khi bạn đã có PostgreSQL chạy local
+version: '3.8'
+
+services:
+  # Backend Server
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: uh-server
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: 3000
+      # Kết nối với PostgreSQL local qua host.docker.internal (Windows/Mac)
+      # Hoặc dùng IP của host machine
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:12345@host.docker.internal:5434/BeNhan}
+      JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      EMAIL_HOST: ${EMAIL_HOST:-}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      AUTO_INIT_DB: ${AUTO_INIT_DB:-true}
+    ports:
+      - "${SERVER_PORT:-3000}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    command: sh -c "sleep 3 && npm run init && node server.js"
+    networks:
+      - uh-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend Client
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: uh-client
+    ports:
+      - "${CLIENT_PORT:-80}:80"
+    depends_on:
+      - server
+    networks:
+      - uh-network
+    restart: unless-stopped
+
+networks:
+  uh-network:
+    driver: bridge
+

@@ -1,0 +1,23 @@
+# Dockerfile for Node.js Backend Server
+FROM node:18-alpine
+
+# Install wget for healthcheck
+RUN apk add --no-cache wget
+
+WORKDIR /app
+
+# Copy package files
+COPY server/package*.json ./
+
+# Install dependencies (including dev dependencies for scripts)
+RUN npm ci
+
+# Copy server code
+COPY server/ .
+
+# Expose port
+EXPOSE 3000
+
+# Start server
+CMD ["node", "server.js"]
+
