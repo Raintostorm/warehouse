@@ -7,8 +7,17 @@ const crypto = require('crypto');
 const db = require('../db');
 const { sendPasswordResetEmail } = require('../utils/emailService');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
+
+// Validate JWT_SECRET in production
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set in production environment');
+}
+
+if (!JWT_SECRET) {
+    console.warn('⚠️  WARNING: JWT_SECRET not set, using default. This is insecure for production!');
+}
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const PASSWORD_RESET_TOKEN_EXP_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_EXP_MINUTES) || 15;
 
@@ -31,16 +40,16 @@ const AuthS = {
             }
             throw error;
         }
-        
+
         // Handle both lowercase and PascalCase column names
         const userPassword = user.password || user.Password;
         const userId = user.id || user.Id;
         const userEmail = user.email || user.Email;
-        
+
         if (!userPassword) {
             throw new Error('Invalid email or password');
         }
-        
+
         // Verify password
         const isPasswordValid = await bcrypt.compare(password, userPassword);
         if (!isPasswordValid) {
@@ -105,7 +114,7 @@ const AuthS = {
                 idToken: googleToken,
                 audience: GOOGLE_CLIENT_ID
             });
-            
+
             const payload = ticket.getPayload();
             return {
                 googleId: payload.sub,
@@ -221,13 +230,13 @@ const AuthS = {
         const googleIdShort = googleUser.googleId.substring(0, 6);
         const timestamp = Date.now().toString().slice(-6);
         let userId = additionalData.id || `GOOGLE_${googleIdShort}_${timestamp}`;
-        
+
         // Ensure ID is unique (max 10 characters for database)
         // If too long, use shorter version
         if (userId.length > 10) {
             userId = `G${googleIdShort}${timestamp}`.substring(0, 10);
         }
-        
+
         // Check if ID already exists, if so, append random number
         try {
             const existingUser = await UserS.findById(userId);

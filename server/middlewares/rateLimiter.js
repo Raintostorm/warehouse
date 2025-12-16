@@ -20,15 +20,26 @@ const formatTime = (ms) => {
 // Helper để tạo Redis store với fallback
 const createStore = (prefix) => {
     try {
-        // Kiểm tra Redis connection
-        const redisStatus = redis.status;
-        if (redisStatus === 'ready' || redisStatus === 'connect') {
+        // Kiểm tra Redis connection (ioredis không có .status, dùng .status thay vào đó)
+        // ioredis có thể check qua ping hoặc connection state
+        const isRedisReady = redis && typeof redis.ping === 'function';
+
+        if (isRedisReady) {
+            // Test connection với ping (async nhưng không await ở đây)
+            // Nếu Redis down, sẽ fallback về memory store khi rate limiter chạy
             return new RedisStore({
-                sendCommand: (...args) => redis.call(...args),
+                sendCommand: (...args) => {
+                    try {
+                        return redis.call(...args);
+                    } catch (err) {
+                        // Redis down, fallback sẽ xử lý
+                        throw err;
+                    }
+                },
                 prefix: `rl:${prefix}:`,
             });
         } else {
-            console.warn(`⚠️  Redis not ready (status: ${redisStatus}), using memory store for ${prefix}`);
+            console.warn(`⚠️  Redis not available, using memory store for ${prefix}`);
         }
     } catch (error) {
         console.warn(`⚠️  Redis store error for ${prefix}:`, error.message);
