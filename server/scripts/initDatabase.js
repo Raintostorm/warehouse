@@ -203,6 +203,7 @@ const TABLES = {
         title TEXT,
         message TEXT,
         type VARCHAR(50),
+        data JSONB,
         is_read BOOLEAN DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         read_at TIMESTAMP,
