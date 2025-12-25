@@ -24,6 +24,7 @@
     "migrate:audit": "node scripts/createAuditLogTable.js",
     "migrate:payments": "node scripts/runPaymentMigration.js",
     "migrate:bills": "node scripts/runBillsMigration.js",
+    "migrate:inventory": "node scripts/runInventoryMigration.js",
     "test:connections": "node scripts/testConnections.js",
     "test:conn": "node scripts/testConnections.js",
     "test:email": "node scripts/testEmail.js",

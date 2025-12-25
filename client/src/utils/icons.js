@@ -5,6 +5,7 @@ import {
     WarehouseIcon,
     OrderIcon,
     ProductIcon,
+    PackageIcon,
     SupplierIcon,
     ChartIcon,
     EditIcon,
@@ -35,6 +36,7 @@ export const Icons = {
     Warehouse: WarehouseIcon,
     Order: OrderIcon,
     Product: ProductIcon,
+    Package: PackageIcon,
     Supplier: SupplierIcon,
     Chart: ChartIcon,
 
@@ -43,9 +45,12 @@ export const Icons = {
     Delete: DeleteIcon,
     Security: SecurityIcon,
     Refresh: RefreshIcon,
+    RefreshCw: RefreshIcon, // Alias
     Add: AddIcon,
+    Plus: AddIcon, // Alias
     Search: SearchIcon,
     Close: CloseIcon,
+    X: CloseIcon, // Alias
     Logout: LogoutIcon,
 
     // Form
@@ -55,19 +60,28 @@ export const Icons = {
     // Status
     Success: SuccessIcon,
     Warning: WarningIcon,
+    AlertTriangle: WarningIcon, // Alias
+    AlertCircle: WarningIcon, // Alias
     Info: InfoIcon,
+    CheckCircle: SuccessIcon, // Alias
+    XCircle: DeleteIcon, // Alias
 
     // Reports
     File: FileIcon,
     Download: DownloadIcon,
     Loading: LoadingIcon,
+    Loader: LoadingIcon, // Alias
 
     // Settings
     Settings: SettingsIcon,
 
     // Theme
     Sun: SunIcon,
-    Moon: MoonIcon
+    Moon: MoonIcon,
+
+    // Additional icons (using existing icons as placeholders)
+    Clock: OrderIcon, // Using OrderIcon as placeholder
+    ArrowRightLeft: RefreshIcon // Using RefreshIcon as placeholder
 };
 
 export default Icons;

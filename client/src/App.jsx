@@ -32,6 +32,8 @@ const VideoCallList = lazy(() => import('./components/VideoCallList'));
 const AdminNotificationPanel = lazy(() => import('./components/AdminNotificationPanel'));
 const AIChat = lazy(() => import('./components/AIChat'));
 const CustomChatbot = lazy(() => import('./components/CustomChatbot'));
+const InventoryManagement = lazy(() => import('../components/InventoryManagement'));
+const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard'));
 
 function App() {
   const { isAuthenticated, user, logout, loading, token } = useAuth();
@@ -455,6 +457,12 @@ function App() {
                 <CProduct onProductCreated={handleProductCreated} />
                 <ProductL key={`product-${refreshKey}`} />
               </>
+            )}
+            {activeTab === 'inventory' && (
+              <InventoryManagement />
+            )}
+            {activeTab === 'analytics' && (
+              <AnalyticsDashboard />
             )}
             {activeTab === 'suppliers' && (
               <>

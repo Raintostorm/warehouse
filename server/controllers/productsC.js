@@ -71,6 +71,32 @@ const ProductsC = {
                 req
             });
 
+            // Record stock change in inventory history if number changed (non-blocking)
+            if (productData.number !== undefined && oldProduct && oldProduct.number !== product.number) {
+                try {
+                    const InventoryS = require('../services/inventoryS');
+                    const previousQuantity = oldProduct.number || 0;
+                    const newQuantity = product.number || 0;
+                    const quantityChange = newQuantity - previousQuantity;
+                    
+                    await InventoryS.recordStockChange({
+                        productId: product.id || product.Id,
+                        warehouseId: null, // Global product stock
+                        transactionType: quantityChange > 0 ? 'IN' : 'ADJUSTMENT',
+                        quantity: quantityChange,
+                        previousQuantity,
+                        newQuantity,
+                        referenceType: 'product_update',
+                        notes: 'Product stock updated'
+                    });
+                    
+                    // Check for low stock
+                    await InventoryS.checkLowStock(product.id || product.Id, null);
+                } catch (invError) {
+                    console.error('Failed to record inventory change for product:', invError);
+                }
+            }
+
             // Check low stock after update (non-blocking)
             try {
                 const NotificationsS = require('../services/notificationsS');

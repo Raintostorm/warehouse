@@ -528,10 +528,48 @@ export const orderWarehouseAPI = {
     }
 };
 
-// API cho Statistics
+// API cho Statistics & Analytics
 export const statisticsAPI = {
     getDashboardStats: async () => {
         const response = await api.get('/statistics/dashboard');
+        return response.data;
+    },
+    getSalesTrends: async (period = 'month', days = 30) => {
+        const response = await api.get('/statistics/sales-trends', {
+            params: { period, days }
+        });
+        return response.data;
+    },
+    getProductPerformance: async (limit = 10, sortBy = 'revenue') => {
+        const response = await api.get('/statistics/product-performance', {
+            params: { limit, sortBy }
+        });
+        return response.data;
+    },
+    getWarehouseUtilization: async () => {
+        const response = await api.get('/statistics/warehouse-utilization');
+        return response.data;
+    },
+    getRevenueByPeriod: async (period = 'month', startDate = null, endDate = null) => {
+        const response = await api.get('/statistics/revenue-by-period', {
+            params: { period, startDate, endDate }
+        });
+        return response.data;
+    },
+    getInventoryTurnover: async (days = 30) => {
+        const response = await api.get('/statistics/inventory-turnover', {
+            params: { days }
+        });
+        return response.data;
+    },
+    getCustomerAnalytics: async (days = 30) => {
+        const response = await api.get('/statistics/customer-analytics', {
+            params: { days }
+        });
+        return response.data;
+    },
+    getSupplierAnalytics: async () => {
+        const response = await api.get('/statistics/supplier-analytics');
         return response.data;
     }
 };
@@ -813,6 +851,161 @@ export const chatbotAPI = {
     // Lấy danh sách actions có thể thực hiện
     getActions: async () => {
         const response = await api.get('/chatbot/actions');
+        return response.data;
+    }
+};
+
+// API cho Inventory Management
+export const inventoryAPI = {
+    getStockSummary: async (productId) => {
+        const response = await api.get(`/inventory/summary/${productId}`);
+        return response.data;
+    },
+    getCurrentStock: async (productId, warehouseId = null) => {
+        const params = warehouseId ? { warehouseId } : {};
+        const response = await api.get(`/inventory/stock/${productId}`, { params });
+        return response.data;
+    },
+    getStockHistory: async (filters = {}) => {
+        const response = await api.get('/inventory/history', { params: filters });
+        return response.data;
+    },
+    checkLowStock: async (productId, warehouseId = null) => {
+        const params = warehouseId ? { warehouseId } : {};
+        const response = await api.get(`/inventory/low-stock/${productId}`, { params });
+        return response.data;
+    },
+    adjustStock: async (productId, adjustmentData) => {
+        const response = await api.post(`/inventory/adjust/${productId}`, adjustmentData);
+        return response.data;
+    },
+    transferStock: async (transferData) => {
+        const response = await api.post('/inventory/transfer', transferData);
+        return response.data;
+    }
+};
+
+// API cho Stock Transfers
+export const stockTransferAPI = {
+    getAllTransfers: async (filters = {}) => {
+        const response = await api.get('/stock-transfers', { params: filters });
+        return response.data;
+    },
+    getTransferById: async (id) => {
+        const response = await api.get(`/stock-transfers/${id}`);
+        return response.data;
+    },
+    createTransfer: async (transferData) => {
+        const response = await api.post('/stock-transfers', transferData);
+        return response.data;
+    },
+    updateTransfer: async (id, updateData) => {
+        const response = await api.put(`/stock-transfers/${id}`, updateData);
+        return response.data;
+    },
+    approveTransfer: async (id) => {
+        const response = await api.post(`/stock-transfers/${id}/approve`);
+        return response.data;
+    },
+    cancelTransfer: async (id) => {
+        const response = await api.post(`/stock-transfers/${id}/cancel`);
+        return response.data;
+    }
+};
+
+// API cho Low Stock Alerts
+export const lowStockAlertAPI = {
+    getAllAlerts: async (filters = {}) => {
+        const response = await api.get('/low-stock-alerts', { params: filters });
+        return response.data;
+    },
+    getActiveAlerts: async () => {
+        const response = await api.get('/low-stock-alerts/active');
+        return response.data;
+    },
+    getAlertHistory: async (filters = {}) => {
+        const response = await api.get('/low-stock-alerts/history', { params: filters });
+        return response.data;
+    },
+    getAlertById: async (id) => {
+        const response = await api.get(`/low-stock-alerts/${id}`);
+        return response.data;
+    },
+    checkAndCreateAlerts: async (productId = null, warehouseId = null) => {
+        const params = {};
+        if (productId) params.productId = productId;
+        if (warehouseId) params.warehouseId = warehouseId;
+        const response = await api.post('/low-stock-alerts/check', null, { params });
+        return response.data;
+    },
+    resolveAlert: async (id, resolvedBy = null) => {
+        const response = await api.post(`/low-stock-alerts/${id}/resolve`, { resolvedBy });
+        return response.data;
+    }
+};
+
+// API cho File Uploads
+export const fileUploadAPI = {
+    uploadImage: async (file, entityType, entityId, uploadType = null) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('entityType', entityType);
+        formData.append('entityId', entityId);
+        if (uploadType) formData.append('uploadType', uploadType);
+        
+        const response = await api.post('/files/upload/image', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
+    },
+    uploadMultipleImages: async (files, entityType, entityId, uploadType = null) => {
+        const formData = new FormData();
+        files.forEach(file => formData.append('files', file));
+        formData.append('entityType', entityType);
+        formData.append('entityId', entityId);
+        if (uploadType) formData.append('uploadType', uploadType);
+        
+        const response = await api.post('/files/upload/images', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
+    },
+    uploadFile: async (file, entityType, entityId, uploadType = null) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('entityType', entityType);
+        formData.append('entityId', entityId);
+        if (uploadType) formData.append('uploadType', uploadType);
+        
+        const response = await api.post('/files/upload/file', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+        return response.data;
+    },
+    getFilesByEntity: async (entityType, entityId) => {
+        const response = await api.get(`/files/entity/${entityType}/${entityId}`);
+        return response.data;
+    },
+    getPrimaryFile: async (entityType, entityId) => {
+        const response = await api.get(`/files/entity/${entityType}/${entityId}/primary`);
+        return response.data;
+    },
+    getFileById: async (id) => {
+        const response = await api.get(`/files/${id}`);
+        return response.data;
+    },
+    setPrimaryFile: async (id, entityType, entityId) => {
+        const response = await api.put(`/files/${id}/primary`, { entityType, entityId });
+        return response.data;
+    },
+    deleteFile: async (id) => {
+        const response = await api.delete(`/files/${id}`);
         return response.data;
     }
 };

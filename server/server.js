@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const logger = require('./utils/logger');
 
 // Auto-init database if enabled (like Java JPA auto-create)
@@ -89,6 +90,14 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin-notifications', require('./routes/adminNotifications'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/chatbot', require('./routes/chatbot'));
+app.use('/api/inventory', require('./routes/inventory'));
+app.use('/api/stock-transfers', require('./routes/stock-transfers'));
+app.use('/api/low-stock-alerts', require('./routes/low-stock-alerts'));
+app.use('/api/files', require('./routes/files'));
+
+// Serve uploaded files statically
+const uploadDir = process.env.UPLOAD_DIR || './uploads';
+app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
 
 // Initialize Socket.io
 const { initSocketIO } = require('./socket');

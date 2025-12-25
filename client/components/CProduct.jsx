@@ -4,6 +4,7 @@ import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 import Modal from '../src/components/Modal';
+import FileManager from './FileManager';
 
 const CProduct = ({ onProductCreated }) => {
     const { hasRole } = useRole();
@@ -20,6 +21,7 @@ const CProduct = ({ onProductCreated }) => {
         supplierId: ''
     });
     const [loading, setLoading] = useState(false);
+    const [fileManagerModal, setFileManagerModal] = useState({ isOpen: false, productId: null });
 
     const handleChange = (e) => {
         setFormData({
@@ -41,6 +43,7 @@ const CProduct = ({ onProductCreated }) => {
 
             if (response.success) {
                 showSuccess('Product created successfully!');
+                const productId = response.data?.id || formData.id;
                 setFormData({
                     id: '',
                     name: '',
@@ -51,6 +54,10 @@ const CProduct = ({ onProductCreated }) => {
                     supplierId: ''
                 });
                 setIsModalOpen(false);
+                // Open FileManager modal to upload images
+                if (productId) {
+                    setFileManagerModal({ isOpen: true, productId });
+                }
                 if (onProductCreated) {
                     onProductCreated();
                 }
@@ -356,6 +363,20 @@ const CProduct = ({ onProductCreated }) => {
                     </div>
                 </form>
             </Modal>
+
+            {fileManagerModal.isOpen && (
+                <Modal
+                    isOpen={fileManagerModal.isOpen}
+                    onClose={() => setFileManagerModal({ isOpen: false, productId: null })}
+                    title={`Manage Images - Product ${fileManagerModal.productId}`}
+                    size="xlarge"
+                >
+                    <FileManager
+                        entityType="product"
+                        entityId={fileManagerModal.productId}
+                    />
+                </Modal>
+            )}
         </>
     );
 };

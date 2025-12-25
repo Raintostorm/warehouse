@@ -4,6 +4,7 @@ import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 import Modal from '../src/components/Modal';
+import FileManager from './FileManager';
 
 const CUser = ({ onUserCreated }) => {
     const { hasRole } = useRole();
@@ -20,6 +21,7 @@ const CUser = ({ onUserCreated }) => {
     });
     const [loading, setLoading] = useState(false);
     const [generatedId, setGeneratedId] = useState('');
+    const [fileManagerModal, setFileManagerModal] = useState({ isOpen: false, userId: null });
 
     // Generate user ID when modal opens
     useEffect(() => {
@@ -48,6 +50,7 @@ const CUser = ({ onUserCreated }) => {
 
             if (response.success) {
                 showSuccess('User created successfully!');
+                const userId = response.data?.id || response.data?.user?.id;
                 setFormData({
                     id: '',
                     fullname: '',
@@ -58,6 +61,10 @@ const CUser = ({ onUserCreated }) => {
                 });
                 setGeneratedId('');
                 setIsModalOpen(false);
+                // Open FileManager modal to upload images
+                if (userId) {
+                    setFileManagerModal({ isOpen: true, userId });
+                }
                 if (onUserCreated) {
                     onUserCreated();
                 }
@@ -386,6 +393,20 @@ const CUser = ({ onUserCreated }) => {
                     </div>
                 </form>
             </Modal>
+
+            {fileManagerModal.isOpen && (
+                <Modal
+                    isOpen={fileManagerModal.isOpen}
+                    onClose={() => setFileManagerModal({ isOpen: false, userId: null })}
+                    title={`Manage Images - User ${fileManagerModal.userId}`}
+                    size="xlarge"
+                >
+                    <FileManager
+                        entityType="user"
+                        entityId={fileManagerModal.userId}
+                    />
+                </Modal>
+            )}
         </>
     );
 };

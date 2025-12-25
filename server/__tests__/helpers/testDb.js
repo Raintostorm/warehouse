@@ -8,11 +8,17 @@ async function cleanDatabase() {
         // Delete in reverse order of dependencies
         // Use DELETE instead of TRUNCATE to avoid locking issues
         const tables = [
+            'stock_history',
+            'stock_transfers',
+            'low_stock_alerts',
+            'file_uploads',
             'order_warehouses',
             'product_management',
             'warehouse_management',
             'product_details',
             'order_details',
+            'payments',
+            'bills',
             'orders',
             'products',
             'warehouses',
@@ -70,13 +76,22 @@ async function initTestDatabase() {
         // Test connection
         await db.query('SELECT 1');
 
-        // Check if tables exist, if not, log warning
+        // Run initDatabase to ensure all tables exist
+        const { initDatabase } = require('../../scripts/initDatabase');
         try {
-            await db.query('SELECT 1 FROM users LIMIT 1');
-        } catch (error) {
-            if (error.message.includes('does not exist') || error.message.includes('relation')) {
-                console.warn('Warning: Test database tables may not exist. Run "npm run init:db" first.');
-                console.warn('Tests may fail if tables are not created.');
+            await initDatabase();
+        } catch (initError) {
+            // If init fails, check if tables exist
+            console.warn('Warning: initDatabase failed, checking if tables exist:', initError.message);
+            try {
+                await db.query('SELECT 1 FROM users LIMIT 1');
+                await db.query('SELECT 1 FROM stock_history LIMIT 1');
+                await db.query('SELECT 1 FROM file_uploads LIMIT 1');
+            } catch (error) {
+                if (error.message.includes('does not exist') || error.message.includes('relation')) {
+                    console.warn('Warning: Test database tables may not exist. Run "npm run init:db" first.');
+                    console.warn('Tests may fail if tables are not created.');
+                }
             }
         }
     } catch (error) {

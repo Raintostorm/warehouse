@@ -52,6 +52,68 @@ const OrderDetailsC = {
     createOrderDetail: async (req, res) => {
         try {
             const orderDetail = await OrderDetailsS.createOrderDetail(req.body);
+            
+            // Record stock OUT in inventory history (non-blocking)
+            try {
+                const InventoryS = require('../services/inventoryS');
+                const ProductDetailsM = require('../models/productDetailsM');
+                const getActor = require('../utils/getActor');
+                
+                // Get order to check type (only OUT orders reduce stock)
+                const OrdersM = require('../models/ordersM');
+                const order = await OrdersM.findById(orderDetail.order_id || orderDetail.orderId);
+                
+                if (order && (order.type === 'OUT' || order.type === 'out')) {
+                    // Get current stock before reduction
+                    const productId = orderDetail.product_id || orderDetail.productId;
+                    const quantity = orderDetail.number || 0;
+                    
+                    // Try to get warehouse from order_warehouses or use null for global
+                    let warehouseId = null;
+                    try {
+                        const OrderWarehousesM = require('../models/orderWarehousesM');
+                        const orderWarehouses = await OrderWarehousesM.findByOrderId(order.id || order.Id);
+                        if (orderWarehouses && orderWarehouses.length > 0) {
+                            warehouseId = orderWarehouses[0].wid || orderWarehouses[0].warehouseId;
+                        }
+                    } catch (e) {
+                        // Ignore if order_warehouses doesn't exist or has no data
+                    }
+                    
+                    const previousQuantity = await InventoryS.getCurrentStock(productId, warehouseId);
+                    const newQuantity = Math.max(0, previousQuantity - quantity);
+                    
+                    await InventoryS.recordStockChange({
+                        productId,
+                        warehouseId,
+                        transactionType: 'OUT',
+                        quantity: -quantity,
+                        previousQuantity,
+                        newQuantity,
+                        referenceId: order.id || order.Id,
+                        referenceType: 'order',
+                        notes: `Order ${order.id || order.Id} - ${orderDetail.note || ''}`
+                    });
+                    
+                    // Update actual stock
+                    if (warehouseId) {
+                        const existing = await ProductDetailsM.findByProductAndWarehouse(productId, warehouseId);
+                        if (existing) {
+                            await ProductDetailsM.update(productId, warehouseId, { number: newQuantity });
+                        }
+                    } else {
+                        const ProductsM = require('../models/productsM');
+                        await ProductsM.update(productId, { number: newQuantity });
+                    }
+                    
+                    // Check for low stock
+                    await InventoryS.checkLowStock(productId, warehouseId);
+                }
+            } catch (invError) {
+                // Log but don't fail the request
+                console.error('Failed to record inventory change for order detail:', invError);
+            }
+            
             res.status(201).json({
                 success: true,
                 message: 'Order detail created successfully',

@@ -74,7 +74,39 @@ const ProductDetailsC = {
     updateProductDetail: async (req, res) => {
         try {
             const { pid, wid } = req.params;
+            
+            // Get old data before update
+            const ProductDetailsM = require('../models/productDetailsM');
+            const oldProductDetail = await ProductDetailsM.findByProductAndWarehouse(pid, wid);
+            
             const productDetail = await ProductDetailsS.updateProductDetail(pid, wid, req.body);
+            
+            // Record stock change in inventory history if number changed (non-blocking)
+            if (req.body.number !== undefined && oldProductDetail && oldProductDetail.number !== req.body.number) {
+                try {
+                    const InventoryS = require('../services/inventoryS');
+                    const previousQuantity = oldProductDetail.number || 0;
+                    const newQuantity = req.body.number || 0;
+                    const quantityChange = newQuantity - previousQuantity;
+                    
+                    await InventoryS.recordStockChange({
+                        productId: pid,
+                        warehouseId: wid,
+                        transactionType: quantityChange > 0 ? 'IN' : 'ADJUSTMENT',
+                        quantity: quantityChange,
+                        previousQuantity,
+                        newQuantity,
+                        referenceType: 'product_detail_update',
+                        notes: `Product detail updated in warehouse ${wid}`
+                    });
+                    
+                    // Check for low stock
+                    await InventoryS.checkLowStock(pid, wid);
+                } catch (invError) {
+                    console.error('Failed to record inventory change for product detail:', invError);
+                }
+            }
+            
             res.json({
                 success: true,
                 message: 'Product detail updated successfully',

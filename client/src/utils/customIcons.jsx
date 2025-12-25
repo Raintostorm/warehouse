@@ -60,6 +60,17 @@ export const ProductIcon = ({ size, color, ...props }) => (
     </Icon>
 );
 
+// Package/Box Icon (for Inventory)
+export const PackageIcon = ({ size, color, ...props }) => (
+    <Icon size={size} color={color} {...props}>
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+        <line x1="7" y1="10" x2="12" y2="12" />
+        <line x1="17" y1="10" x2="12" y2="12" />
+    </Icon>
+);
+
 // Supplier/Building Icon (same as warehouse but different style)
 export const SupplierIcon = ({ size, color, ...props }) => (
     <Icon size={size} color={color} {...props}>

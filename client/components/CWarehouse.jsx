@@ -4,6 +4,7 @@ import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 import Modal from '../src/components/Modal';
+import FileManager from './FileManager';
 
 const CWarehouse = ({ onWarehouseCreated }) => {
     const { hasRole } = useRole();
@@ -20,6 +21,7 @@ const CWarehouse = ({ onWarehouseCreated }) => {
         endDate: ''
     });
     const [loading, setLoading] = useState(false);
+    const [fileManagerModal, setFileManagerModal] = useState({ isOpen: false, warehouseId: null });
 
     const handleChange = (e) => {
         setFormData({
@@ -40,6 +42,7 @@ const CWarehouse = ({ onWarehouseCreated }) => {
 
             if (response.success) {
                 showSuccess('Warehouse created successfully!');
+                const warehouseId = response.data?.id || formData.id;
                 setFormData({
                     id: '',
                     name: '',
@@ -50,6 +53,10 @@ const CWarehouse = ({ onWarehouseCreated }) => {
                     endDate: ''
                 });
                 setIsModalOpen(false);
+                // Open FileManager modal to upload images
+                if (warehouseId) {
+                    setFileManagerModal({ isOpen: true, warehouseId });
+                }
                 if (onWarehouseCreated) {
                     onWarehouseCreated();
                 }
@@ -353,6 +360,20 @@ const CWarehouse = ({ onWarehouseCreated }) => {
                     </div>
                 </form>
             </Modal>
+
+            {fileManagerModal.isOpen && (
+                <Modal
+                    isOpen={fileManagerModal.isOpen}
+                    onClose={() => setFileManagerModal({ isOpen: false, warehouseId: null })}
+                    title={`Manage Images - Warehouse ${fileManagerModal.warehouseId}`}
+                    size="xlarge"
+                >
+                    <FileManager
+                        entityType="warehouse"
+                        entityId={fileManagerModal.warehouseId}
+                    />
+                </Modal>
+            )}
         </>
     );
 };

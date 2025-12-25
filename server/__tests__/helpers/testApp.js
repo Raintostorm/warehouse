@@ -44,6 +44,11 @@ function createTestApp() {
     app.use('/api/suppliers', require('../../routes/suppliers'));
     app.use('/api/warehouses', require('../../routes/warehouses'));
     app.use('/api/roles', require('../../routes/roles'));
+    app.use('/api/inventory', require('../../routes/inventory'));
+    app.use('/api/stock-transfers', require('../../routes/stock-transfers'));
+    app.use('/api/low-stock-alerts', require('../../routes/low-stock-alerts'));
+    app.use('/api/files', require('../../routes/files'));
+    app.use('/api/statistics', require('../../routes/statistics'));
 
     // 404 handler
     app.use((req, res) => {

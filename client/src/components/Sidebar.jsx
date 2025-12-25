@@ -53,6 +53,8 @@ const Sidebar = ({ activeTab, onTabChange, isCollapsed = false, onToggleCollapse
         { id: 'orders', label: 'Orders', icon: Icons.Order },
         { id: 'payments', label: 'Payments', icon: Icons.File },
         { id: 'products', label: 'Products', icon: Icons.Product },
+        { id: 'inventory', label: 'Inventory', icon: Icons.Package },
+        { id: 'analytics', label: 'Analytics', icon: Icons.Chart },
         { id: 'suppliers', label: 'Suppliers', icon: Icons.Supplier },
         { id: 'video-call', label: 'Video Call', icon: Icons.Users },
         ...(isAdmin ? [{ id: 'admin-notifications', label: 'Send Notification', icon: Icons.File }] : []),

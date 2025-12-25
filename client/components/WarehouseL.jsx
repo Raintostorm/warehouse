@@ -6,6 +6,8 @@ import { Icons } from '../src/utils/icons';
 import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
+import FileManager from './FileManager';
+import Modal from '../src/components/Modal';
 
 const WarehouseL = () => {
     const { hasRole } = useRole();
@@ -19,6 +21,7 @@ const WarehouseL = () => {
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
+    const [fileManagerModal, setFileManagerModal] = useState({ isOpen: false, warehouseId: null });
 
     useEffect(() => {
         fetchWarehouses();
@@ -295,6 +298,26 @@ const WarehouseL = () => {
                                         <td style={{ padding: '14px 16px' }}>
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                                 <button
+                                                    onClick={() => setFileManagerModal({ isOpen: true, warehouseId: warehouse.id })}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '12px',
+                                                        fontWeight: '500',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                    title="Manage Images"
+                                                >
+                                                    <Icons.File size={14} />
+                                                    Images
+                                                </button>
+                                                <button
                                                     onClick={() => setEditingId(warehouse.id)}
                                                     style={{
                                                         padding: '6px 12px',
@@ -351,6 +374,23 @@ const WarehouseL = () => {
                 cancelText="Hủy"
                 type="danger"
             />
+
+            {fileManagerModal.isOpen && (
+                <Modal
+                    isOpen={fileManagerModal.isOpen}
+                    onClose={() => setFileManagerModal({ isOpen: false, warehouseId: null })}
+                    title={`Manage Images - Warehouse ${fileManagerModal.warehouseId}`}
+                    size="large"
+                >
+                    <FileManager
+                        entityType="warehouse"
+                        entityId={fileManagerModal.warehouseId}
+                        uploadType="warehouse_image"
+                        onRefresh={fetchWarehouses}
+                        showImagesOnly={true}
+                    />
+                </Modal>
+            )}
         </div>
     );
 };

@@ -219,6 +219,78 @@ const TABLES = {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
+    `,
+    stock_history: `
+        CREATE TABLE IF NOT EXISTS stock_history (
+            id SERIAL PRIMARY KEY,
+            product_id VARCHAR(10) NOT NULL,
+            warehouse_id VARCHAR(10),
+            transaction_type VARCHAR(20) NOT NULL,
+            quantity INTEGER NOT NULL,
+            previous_quantity INTEGER,
+            new_quantity INTEGER NOT NULL,
+            reference_id VARCHAR(50),
+            reference_type VARCHAR(50),
+            notes TEXT,
+            actor TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE SET NULL
+        )
+    `,
+    stock_transfers: `
+        CREATE TABLE IF NOT EXISTS stock_transfers (
+            id VARCHAR(20) PRIMARY KEY,
+            product_id VARCHAR(10) NOT NULL,
+            from_warehouse_id VARCHAR(10) NOT NULL,
+            to_warehouse_id VARCHAR(10) NOT NULL,
+            quantity INTEGER NOT NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            notes TEXT,
+            actor TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (from_warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
+            FOREIGN KEY (to_warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE
+        )
+    `,
+    low_stock_alerts: `
+        CREATE TABLE IF NOT EXISTS low_stock_alerts (
+            id SERIAL PRIMARY KEY,
+            product_id VARCHAR(10) NOT NULL,
+            warehouse_id VARCHAR(10),
+            current_quantity INTEGER NOT NULL,
+            threshold INTEGER NOT NULL,
+            alert_level VARCHAR(20) DEFAULT 'warning',
+            is_resolved BOOLEAN DEFAULT false,
+            resolved_at TIMESTAMP,
+            resolved_by TEXT,
+            actor TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE SET NULL
+        )
+    `,
+    file_uploads: `
+        CREATE TABLE IF NOT EXISTS file_uploads (
+            id VARCHAR(20) PRIMARY KEY,
+            entity_type VARCHAR(50) NOT NULL,
+            entity_id VARCHAR(50) NOT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            original_name VARCHAR(255) NOT NULL,
+            file_path TEXT NOT NULL,
+            file_url TEXT,
+            file_type VARCHAR(50),
+            mime_type VARCHAR(100),
+            file_size BIGINT,
+            is_primary BOOLEAN DEFAULT false,
+            upload_type VARCHAR(50),
+            metadata JSONB,
+            actor TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP
+        )
     `
 };
 
@@ -234,6 +306,7 @@ async function createTables() {
         'warehouses',
         'orders',
         'order_details',
+        'bills',
         'payments',
         'product_details',
         'warehouse_management',
@@ -241,7 +314,11 @@ async function createTables() {
         'order_warehouses',
         'audit_logs',
         'notifications',
-        'password_resets'
+        'password_resets',
+        'stock_history',
+        'stock_transfers',
+        'low_stock_alerts',
+        'file_uploads'
     ];
 
     for (const tableName of tableOrder) {
@@ -251,6 +328,38 @@ async function createTables() {
         } catch (error) {
             console.error(`Loi khi tao table ${tableName}: `, error.message);
         }
+    }
+
+    // Add inventory columns to products table if they don't exist
+    try {
+        await db.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'low_stock_threshold'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN low_stock_threshold INTEGER DEFAULT 10;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'reorder_point'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN reorder_point INTEGER;
+                END IF;
+
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'products' AND column_name = 'reorder_quantity'
+                ) THEN
+                    ALTER TABLE products ADD COLUMN reorder_quantity INTEGER;
+                END IF;
+            END $$;
+        `);
+        console.log('Da them / kiem tra inventory columns trong products table');
+    } catch (error) {
+        console.error('Loi khi them inventory columns vao products table: ', error.message);
     }
 }
 
