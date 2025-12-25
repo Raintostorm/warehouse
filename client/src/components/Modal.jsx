@@ -4,10 +4,10 @@ import { Icons } from '../utils/icons';
 
 const Modal = ({ isOpen, onClose, title, children, size = 'medium' }) => {
     const { isDark } = useTheme();
-    
+
     // Theme-aware colors
     const modalBg = isDark ? 'rgba(30, 41, 59, 0.98)' : 'white';
-    const headerBg = isDark 
+    const headerBg = isDark
         ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
         : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
     const borderColor = isDark ? '#334155' : '#e5e7eb';
@@ -126,11 +126,12 @@ const Modal = ({ isOpen, onClose, title, children, size = 'medium' }) => {
                 {/* Content */}
                 <div style={{
                     padding: '20px',
-                    overflowY: 'auto',
-                    overflowX: 'visible',
+                    overflowY: 'auto', // Cho phép scroll trong modal content
+                    overflowX: 'hidden',
                     flex: 1,
                     position: 'relative',
-                    overflow: 'visible'
+                    maxHeight: 'calc(90vh - 140px)', // Giới hạn chiều cao để đảm bảo buttons luôn visible
+                    paddingBottom: '10px' // Thêm padding bottom
                 }}>
                     {children}
                 </div>

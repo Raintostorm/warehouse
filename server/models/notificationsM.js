@@ -4,9 +4,10 @@ const NotificationsM = {
     // Create notification
     create: async (notification) => {
         const result = await db.query(
-            `INSERT INTO notifications (type, title, message, data, is_read, created_at) 
-             VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP) RETURNING *`,
+            `INSERT INTO notifications (user_id, type, title, message, data, is_read, created_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP) RETURNING *`,
             [
+                notification.user_id || null,
                 notification.type,
                 notification.title,
                 notification.message,
@@ -19,11 +20,17 @@ const NotificationsM = {
 
     // Find all notifications
     findAll: async (filters = {}) => {
-        const { is_read, type, limit = 100, offset = 0 } = filters;
+        const { is_read, type, user_id, limit = 100, offset = 0 } = filters;
 
         let query = 'SELECT * FROM notifications WHERE 1=1';
         const values = [];
         let paramCount = 1;
+
+        if (user_id !== undefined) {
+            query += ` AND user_id = $${paramCount}`;
+            values.push(user_id);
+            paramCount++;
+        }
 
         if (is_read !== undefined) {
             query += ` AND is_read = $${paramCount}`;

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { authAPI, userAPI } from '../../services/api';
 import { AuthContext } from './AuthContext';
+import logger from '../utils/logger';
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -23,7 +24,7 @@ export const AuthProvider = ({ children }) => {
             }
             return false; // Nếu không có exp, giả sử token không hết hạn
         } catch (e) {
-            console.error('Error checking token expiration:', e);
+            logger.error('Error checking token expiration:', e);
             return true; // Nếu không decode được, coi như hết hạn
         }
     }, []);
@@ -38,7 +39,7 @@ export const AuthProvider = ({ children }) => {
             }
             return null;
         } catch (e) {
-            console.error('Error getting token expiration:', e);
+            logger.error('Error getting token expiration:', e);
             return null;
         }
     }, []);
@@ -56,7 +57,7 @@ export const AuthProvider = ({ children }) => {
             }
             return false;
         } catch (e) {
-            console.error('Error checking token expiration soon:', e);
+            logger.error('Error checking token expiration soon:', e);
             return true;
         }
     }, []);
@@ -91,8 +92,13 @@ export const AuthProvider = ({ children }) => {
     // Verify token với server
     const verifyToken = useCallback(async () => {
         const storedToken = localStorage.getItem('token');
-        if (!storedToken || isTokenExpired(storedToken)) {
+        if (!storedToken) {
             return false;
+        }
+
+        // Only check expiration, don't fail if expired (let server decide)
+        if (isTokenExpired(storedToken)) {
+            logger.debug('Token expired, attempting to verify with server');
         }
 
         try {
@@ -112,11 +118,16 @@ export const AuthProvider = ({ children }) => {
                     return true;
                 }
             }
+            // If verification fails but we have token, don't logout immediately
+            // Might be temporary server issue
+            logger.warn('Token verification returned false, but keeping token');
             return false;
         } catch (error) {
-            console.error('Token verification failed:', error);
-            // Nếu token không hợp lệ, clear data
-            logout();
+            logger.error('Token verification failed:', error);
+            // Only logout on 401 (unauthorized), not on network errors
+            if (error.response?.status === 401) {
+                logout();
+            }
             return false;
         }
     }, [isTokenExpired, logout]);
@@ -136,23 +147,30 @@ export const AuthProvider = ({ children }) => {
                     } else {
                         const parsedUser = JSON.parse(storedUser);
 
+                        // Set state immediately from localStorage (optimistic update)
+                        setToken(storedToken);
+                        setUser(parsedUser);
+
                         // Kiểm tra token có hết hạn không
                         if (isTokenExpired(storedToken)) {
                             // Thử verify với server để refresh token
                             const verified = await verifyToken();
                             if (!verified) {
+                                // Only logout if verify fails, don't clear on network errors
+                                logger.warn('Token expired and verification failed');
                                 logout();
                             }
                         } else {
-                            setToken(storedToken);
-                            setUser(parsedUser);
-                            // Verify token với server để đảm bảo tính hợp lệ
-                            await verifyToken();
+                            // Token not expired, verify in background (don't block)
+                            verifyToken().catch(err => {
+                                // If verify fails, don't logout immediately - might be network issue
+                                logger.warn('Background token verification failed:', err.message);
+                            });
                         }
                     }
                 } catch (error) {
                     // If JSON parse fails, clear invalid data
-                    console.error('Error parsing user data from localStorage:', error);
+                    logger.error('Error parsing user data from localStorage:', error);
                     logout();
                 }
             }
@@ -165,17 +183,37 @@ export const AuthProvider = ({ children }) => {
 
     // Helper function để xử lý login response (dùng chung cho login và Google login)
     const handleLoginResponse = useCallback(async (loginData, rememberMe = false) => {
+        console.log('[AuthContext] handleLoginResponse called', {
+            hasUser: !!loginData.user,
+            hasToken: !!loginData.token,
+            loginDataKeys: Object.keys(loginData)
+        });
+
         const { user: userData, token: newToken, roles } = loginData;
 
         if (!userData || !newToken) {
+            console.error('[AuthContext] Missing user or token', {
+                hasUser: !!userData,
+                hasToken: !!newToken
+            });
             throw new Error('Invalid response from server');
         }
+
+        console.log('[AuthContext] Setting state and localStorage', {
+            userId: userData.id || userData.Id,
+            tokenLength: newToken.length
+        });
 
         setUser(userData);
         setToken(newToken);
         setLastActivity(Date.now());
         localStorage.setItem('token', newToken);
         localStorage.setItem('user', JSON.stringify(userData));
+
+        console.log('[AuthContext] localStorage set, verifying...', {
+            tokenInStorage: !!localStorage.getItem('token'),
+            userInStorage: !!localStorage.getItem('user')
+        });
 
         // Lưu remember me preference
         if (rememberMe) {
@@ -193,7 +231,7 @@ export const AuthProvider = ({ children }) => {
                 const payload = JSON.parse(atob(newToken.split('.')[1]));
                 roleNames = payload.roleNames || [];
             } catch (e) {
-                console.error('Error decoding token for roles:', e);
+                logger.error('Error decoding token for roles:', e);
             }
         }
 
@@ -206,7 +244,7 @@ export const AuthProvider = ({ children }) => {
                     roleNames = ['Admin'];
                 }
             } catch (error) {
-                console.error('Failed to assign Admin role:', error);
+                logger.error('Failed to assign Admin role:', error);
             }
         }
 
@@ -216,8 +254,31 @@ export const AuthProvider = ({ children }) => {
             localStorage.setItem('roles', JSON.stringify(roles));
         }
 
-        // Force a small delay to ensure state updates
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Force a small delay to ensure state updates propagate
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Double-check that localStorage was updated (this is the source of truth)
+        const currentToken = localStorage.getItem('token');
+        const currentUser = localStorage.getItem('user');
+
+        if (!currentToken || !currentUser) {
+            logger.error('Login state not properly saved to localStorage', {
+                hasToken: !!currentToken,
+                hasUser: !!currentUser,
+                tokenLength: currentToken?.length,
+                userLength: currentUser?.length
+            });
+            throw new Error('Failed to save login state');
+        }
+
+        // State might not be updated yet, but localStorage is the source of truth
+        // The component will re-render and check localStorage
+        logger.debug('Login state saved successfully', {
+            hasToken: !!currentToken,
+            hasUser: !!currentUser,
+            tokenLength: currentToken.length,
+            userLength: currentUser.length
+        });
 
         return { success: true };
     }, []);
@@ -225,19 +286,43 @@ export const AuthProvider = ({ children }) => {
     const login = useCallback(async (email, password, rememberMe = false) => {
         try {
             setError(null);
+            logger.debug('Login attempt', { email });
+
             const response = await authAPI.login(email, password);
+
+            logger.debug('Login API response', {
+                success: response.data?.success,
+                hasData: !!response.data?.data,
+                hasToken: !!response.data?.data?.token,
+                hasUser: !!response.data?.data?.user
+            });
 
             // Response structure: response.data.data contains { user, token, roles }
             const loginData = response.data.data || response.data;
 
             if (!loginData) {
+                logger.error('Invalid login response', { response: response.data });
                 throw new Error('Invalid response from server');
             }
 
+            if (!loginData.token || !loginData.user) {
+                logger.error('Login data missing token or user', {
+                    hasToken: !!loginData.token,
+                    hasUser: !!loginData.user,
+                    loginData
+                });
+                throw new Error('Invalid login data: missing token or user');
+            }
+
+            logger.debug('Calling handleLoginResponse', {
+                hasToken: !!loginData.token,
+                hasUser: !!loginData.user,
+                userId: loginData.user?.id || loginData.user?.Id
+            });
 
             return await handleLoginResponse(loginData, rememberMe);
         } catch (error) {
-            console.error('Login error:', error);
+            logger.error('Login error:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Login failed';
             setError(errorMessage);
             return {
@@ -248,7 +333,25 @@ export const AuthProvider = ({ children }) => {
     }, [handleLoginResponse]);
 
     const isAuthenticated = useCallback(() => {
-        return !!token && !!user;
+        // Check both state and localStorage for reliability
+        const hasToken = !!(token || localStorage.getItem('token'));
+        const hasUser = !!(user || localStorage.getItem('user'));
+        const isAuth = hasToken && hasUser;
+
+        // Debug logging (only in development)
+        if (process.env.NODE_ENV === 'development') {
+            logger.debug('isAuthenticated check', {
+                hasToken,
+                hasUser,
+                isAuth,
+                token: !!token,
+                user: !!user,
+                localStorageToken: !!localStorage.getItem('token'),
+                localStorageUser: !!localStorage.getItem('user')
+            });
+        }
+
+        return isAuth;
     }, [token, user]);
 
     // Lấy roles từ localStorage hoặc từ token
@@ -269,12 +372,12 @@ export const AuthProvider = ({ children }) => {
                     const roleNames = payload.roleNames || [];
                     return roleNames;
                 } catch (e) {
-                    console.error('Error decoding token:', e);
+                    logger.error('Error decoding token:', e);
                 }
             }
             return [];
         } catch (error) {
-            console.error('Error getting user roles:', error);
+            logger.error('Error getting user roles:', error);
             return [];
         }
     }, [token]);
@@ -322,7 +425,7 @@ export const AuthProvider = ({ children }) => {
             }
             return { success: false, error: 'Invalid response from server' };
         } catch (error) {
-            console.error('Error refreshing user data:', error);
+            logger.error('Error refreshing user data:', error);
             return {
                 success: false,
                 error: error.response?.data?.error || error.message || 'Failed to refresh user data'
@@ -342,7 +445,7 @@ export const AuthProvider = ({ children }) => {
             }
             return { success: false, error: 'Invalid response from server' };
         } catch (error) {
-            console.error('Error updating profile:', error);
+            logger.error('Error updating profile:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Failed to update profile';
             setError(errorMessage);
             return {
@@ -362,7 +465,7 @@ export const AuthProvider = ({ children }) => {
             }
             return { success: false, error: response.data?.error || 'Đổi mật khẩu thất bại' };
         } catch (error) {
-            console.error('Error changing password:', error);
+            logger.error('Error changing password:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Đổi mật khẩu thất bại';
             setError(errorMessage);
             return {
@@ -385,11 +488,11 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('Invalid response from server');
             }
 
-            console.log('Google login successful:', loginData);
+            logger.debug('Google login successful:', loginData);
 
             return await handleLoginResponse(loginData, rememberMe);
         } catch (error) {
-            console.error('Google login error:', error);
+            logger.error('Google login error:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Google login failed';
             setError(errorMessage);
             return {
@@ -415,7 +518,7 @@ export const AuthProvider = ({ children }) => {
 
             return await handleLoginResponse(loginData, rememberMe);
         } catch (error) {
-            console.error('Google register error:', error);
+            logger.error('Google register error:', error);
             const errorMessage = error.response?.data?.error || error.message || 'Đăng ký bằng Google thất bại';
             setError(errorMessage);
             return {

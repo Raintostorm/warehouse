@@ -3,6 +3,7 @@ const router = express.Router();
 const { sendEmail } = require('../utils/emailService');
 const UserRolesM = require('../models/userRolesM');
 const UsersM = require('../models/usersM');
+const NotificationsM = require('../models/notificationsM');
 const { queryWithFallback } = require('../utils/dbHelper');
 const { getAdminEmails } = require('../utils/getAdminEmails');
 const logger = require('../utils/logger');
@@ -12,9 +13,9 @@ const authMiddleware = require('../middlewares/authMiddleware');
 router.use(authMiddleware);
 
 /**
- * Get all staff/employee emails
+ * Get all staff/employee users (with id, email, fullname)
  */
-async function getStaffEmails() {
+async function getStaffUsers() {
     try {
         // Find Staff role ID
         let staffRole;
@@ -43,13 +44,15 @@ async function getStaffEmails() {
         const roleId = staffRole.id || staffRole.Id;
         const staffUsers = await UserRolesM.findByRoleId(roleId);
 
-        const emails = staffUsers
-            .map(user => user.email || user.Email)
-            .filter(email => email && email.includes('@'));
-
-        return emails;
+        return staffUsers
+            .map(user => ({
+                id: user.id || user.user_id,
+                email: user.email || user.Email,
+                fullname: user.fullname || user.Fullname
+            }))
+            .filter(user => user.email && user.email.includes('@'));
     } catch (error) {
-        logger.error('Error getting staff emails:', error);
+        logger.error('Error getting staff users:', error);
         return [];
     }
 }
@@ -82,8 +85,13 @@ router.post('/send-to-staff', async (req, res) => {
         const { subject, message, html } = req.body;
         const adminUser = req.user;
 
-        // Check if user is admin
-        if (adminUser.role !== 'Admin' && adminUser.role !== 'admin') {
+        // Check if user is admin - check both role and roleNames
+        const userRole = adminUser.role || adminUser.Role;
+        const roleNames = adminUser.roleNames || [];
+        const isAdmin = userRole === 'Admin' || userRole === 'admin' || 
+                       roleNames.some(r => (r || '').toLowerCase() === 'admin');
+
+        if (!isAdmin) {
             return res.status(403).json({
                 success: false,
                 message: 'Only admins can send notifications to staff'
@@ -97,13 +105,13 @@ router.post('/send-to-staff', async (req, res) => {
             });
         }
 
-        // Get all staff emails
-        const staffEmails = await getStaffEmails();
+        // Get all staff users
+        const staffUsers = await getStaffUsers();
 
-        if (staffEmails.length === 0) {
+        if (staffUsers.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'No staff emails found'
+                message: 'No staff users found'
             });
         }
 
@@ -119,19 +127,43 @@ router.post('/send-to-staff', async (req, res) => {
             </div>
         `;
 
+        // Get staff emails for email sending
+        const staffEmails = staffUsers.map(user => user.email);
+
+        // Save notification to database for each staff user
+        const notificationPromises = staffUsers.map(user =>
+            NotificationsM.create({
+                user_id: user.id,
+                type: 'admin_notification',
+                title: subject,
+                message: message,
+                data: {
+                    sender: adminUser.fullname || adminUser.Fullname || 'Admin',
+                    senderId: adminUser.id || adminUser.Id
+                },
+                is_read: false
+            }).catch(err => {
+                logger.error(`Error creating notification for user ${user.id}:`, err);
+                return null;
+            })
+        );
+
+        // Wait for all notifications to be created
+        await Promise.all(notificationPromises);
+
         // Send email to all staff
         await sendEmail(staffEmails, subject, emailHtml, message);
 
         logger.info('Admin notification sent to staff', {
             adminId: adminUser.id || adminUser.Id,
-            staffCount: staffEmails.length,
+            staffCount: staffUsers.length,
             subject
         });
 
         res.json({
             success: true,
-            message: `Notification sent to ${staffEmails.length} staff member(s)`,
-            recipients: staffEmails.length
+            message: `Notification sent to ${staffUsers.length} staff member(s)`,
+            recipients: staffUsers.length
         });
     } catch (error) {
         logger.error('Error sending notification to staff:', error);
@@ -152,8 +184,13 @@ router.post('/send-to-users', async (req, res) => {
         const { userIds, subject, message, html } = req.body;
         const adminUser = req.user;
 
-        // Check if user is admin
-        if (adminUser.role !== 'Admin' && adminUser.role !== 'admin') {
+        // Check if user is admin - check both role and roleNames
+        const userRole = adminUser.role || adminUser.Role;
+        const roleNames = adminUser.roleNames || [];
+        const isAdmin = userRole === 'Admin' || userRole === 'admin' || 
+                       roleNames.some(r => (r || '').toLowerCase() === 'admin');
+
+        if (!isAdmin) {
             return res.status(403).json({
                 success: false,
                 message: 'Only admins can send notifications'
@@ -179,10 +216,10 @@ router.post('/send-to-users', async (req, res) => {
         const targetUsers = allUsers.filter(user => userIds.includes(user.id));
         const targetEmails = targetUsers.map(user => user.email);
 
-        if (targetEmails.length === 0) {
+        if (targetUsers.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'No valid user emails found'
+                message: 'No valid users found'
             });
         }
 
@@ -198,19 +235,42 @@ router.post('/send-to-users', async (req, res) => {
             </div>
         `;
 
-        // Send email
-        await sendEmail(targetEmails, subject, emailHtml, message);
+        // Save notification to database for each target user
+        const notificationPromises = targetUsers.map(user =>
+            NotificationsM.create({
+                user_id: user.id,
+                type: 'admin_notification',
+                title: subject,
+                message: message,
+                data: {
+                    sender: adminUser.fullname || adminUser.Fullname || 'Admin',
+                    senderId: adminUser.id || adminUser.Id
+                },
+                is_read: false
+            }).catch(err => {
+                logger.error(`Error creating notification for user ${user.id}:`, err);
+                return null;
+            })
+        );
+
+        // Wait for all notifications to be created
+        await Promise.all(notificationPromises);
+
+        // Send email to all target users
+        if (targetEmails.length > 0) {
+            await sendEmail(targetEmails, subject, emailHtml, message);
+        }
 
         logger.info('Admin notification sent to users', {
             adminId: adminUser.id || adminUser.Id,
-            userCount: targetEmails.length,
+            userCount: targetUsers.length,
             subject
         });
 
         res.json({
             success: true,
-            message: `Notification sent to ${targetEmails.length} user(s)`,
-            recipients: targetEmails.length
+            message: `Notification sent to ${targetUsers.length} user(s)`,
+            recipients: targetUsers.length
         });
     } catch (error) {
         logger.error('Error sending notification to users:', error);
@@ -230,8 +290,13 @@ router.get('/users', async (req, res) => {
     try {
         const adminUser = req.user;
 
-        // Check if user is admin
-        if (adminUser.role !== 'Admin' && adminUser.role !== 'admin') {
+        // Check if user is admin - check both role and roleNames
+        const userRole = adminUser.role || adminUser.Role;
+        const roleNames = adminUser.roleNames || [];
+        const isAdmin = userRole === 'Admin' || userRole === 'admin' || 
+                       roleNames.some(r => (r || '').toLowerCase() === 'admin');
+
+        if (!isAdmin) {
             return res.status(403).json({
                 success: false,
                 message: 'Only admins can access this endpoint'

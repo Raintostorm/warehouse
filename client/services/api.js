@@ -1,11 +1,29 @@
 import axios from 'axios';
 
+// Get API URL from environment variable with fallback
+const getApiUrl = () => {
+    const envUrl = import.meta.env.VITE_API_URL;
+    if (envUrl) {
+        // Remove trailing slash if present
+        return envUrl.replace(/\/$/, '');
+    }
+    // Fallback to localhost for development
+    return 'http://localhost:3000/api';
+};
+
+// Validate API URL format
+const apiUrl = getApiUrl();
+if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+    console.warn('Invalid API URL format. Using default localhost URL.');
+}
+
 // Tạo instance axios với base URL
 const api = axios.create({
-    baseURL: 'http://localhost:3000/api',
+    baseURL: apiUrl,
     headers: {
         'Content-Type': 'application/json'
-    }
+    },
+    timeout: 30000, // 30 seconds timeout
 });
 
 // API cho Users
@@ -231,12 +249,94 @@ export const orderAPI = {
         const response = await api.delete(`/orders/${id}`);
         return response.data;
     },
-    generateBill: async (orderId, productIds = null) => {
-        const response = await api.post(`/orders/${orderId}/generate-bill`,
-            { productIds },
+    generateBill: async (orderIds, productIds = null) => {
+        // Support both single orderId (string) and multiple orderIds (array)
+        const orderIdArray = Array.isArray(orderIds) ? orderIds : [orderIds];
+        const firstOrderId = orderIdArray[0];
+
+        const response = await api.post(`/orders/${firstOrderId}/generate-bill`,
+            { orderIds: orderIdArray, productIds },
             { responseType: 'blob' }
         );
         return response;
+    }
+};
+
+// API cho Bills
+export const billAPI = {
+    getAllBills: async () => {
+        const response = await api.get('/bills');
+        return response.data;
+    },
+    getBillById: async (id) => {
+        const response = await api.get(`/bills/${id}`);
+        return response.data;
+    },
+    getBillsByOrderId: async (orderId) => {
+        const response = await api.get(`/bills/order/${orderId}`);
+        return response.data;
+    },
+    getUnpaidBills: async () => {
+        const response = await api.get('/bills/unpaid');
+        return response.data;
+    },
+    createBill: async (billData) => {
+        const response = await api.post('/bills', billData);
+        return response.data;
+    },
+    updateBill: async (id, billData) => {
+        const response = await api.put(`/bills/${id}`, billData);
+        return response.data;
+    },
+    deleteBill: async (id) => {
+        const response = await api.delete(`/bills/${id}`);
+        return response.data;
+    }
+};
+
+// API cho Payments
+export const paymentAPI = {
+    getAllPayments: async () => {
+        const response = await api.get('/payments');
+        return response.data;
+    },
+    getPaymentById: async (id) => {
+        const response = await api.get(`/payments/${id}`);
+        return response.data;
+    },
+    getPaymentsByOrderId: async (orderId) => {
+        const response = await api.get(`/payments/order/${orderId}`);
+        return response.data;
+    },
+    getOrderPaymentSummary: async (orderId) => {
+        const response = await api.get(`/payments/order/${orderId}/summary`);
+        return response.data;
+    },
+    createPayment: async (paymentData) => {
+        const response = await api.post('/payments', paymentData);
+        return response.data;
+    },
+    updatePayment: async (id, paymentData) => {
+        const response = await api.put(`/payments/${id}`, paymentData);
+        return response.data;
+    },
+    deletePayment: async (id) => {
+        const response = await api.delete(`/payments/${id}`);
+        return response.data;
+    },
+    // Payment Gateway APIs
+    initiateGatewayPayment: async (orderId, amount, gateway, orderInfo) => {
+        const response = await api.post('/payments/gateway/initiate', {
+            orderId,
+            amount,
+            gateway,
+            orderInfo
+        });
+        return response.data;
+    },
+    getGatewayStatus: async () => {
+        const response = await api.get('/payments/gateway/status');
+        return response.data;
     }
 };
 
@@ -591,6 +691,131 @@ api.interceptors.request.use(
         return Promise.reject(error);
     }
 );
+
+// Response interceptor để handle errors centrally
+api.interceptors.response.use(
+    (response) => {
+        // Return successful responses as-is
+        return response;
+    },
+    (error) => {
+        // Handle network errors
+        if (!error.response) {
+            if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+                error.userMessage = 'Request timeout. Please check your connection and try again.';
+            } else if (error.message === 'Network Error') {
+                error.userMessage = 'Network error. Please check your internet connection.';
+            } else {
+                error.userMessage = 'Unable to connect to server. Please try again later.';
+            }
+            return Promise.reject(error);
+        }
+
+        const { status, data } = error.response;
+
+        // Handle specific HTTP status codes
+        switch (status) {
+            case 401:
+                // Unauthorized - token expired or invalid
+                error.userMessage = 'Your session has expired. Please login again.';
+                // Clear token and redirect to login
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('roles');
+                // Only redirect if not already on login page
+                if (!window.location.pathname.includes('login') && !window.location.pathname.includes('reset-password')) {
+                    window.location.href = '/';
+                }
+                break;
+            case 403:
+                error.userMessage = data?.error || data?.message || 'You do not have permission to perform this action.';
+                break;
+            case 404:
+                error.userMessage = data?.error || data?.message || 'Resource not found.';
+                break;
+            case 409:
+                error.userMessage = data?.error || data?.message || 'This resource already exists.';
+                break;
+            case 422:
+                error.userMessage = data?.error || data?.message || 'Validation error. Please check your input.';
+                break;
+            case 429:
+                error.userMessage = 'Too many requests. Please wait a moment and try again.';
+                break;
+            case 500:
+                error.userMessage = data?.error || data?.message || 'Server error. Please try again later.';
+                break;
+            case 503:
+                error.userMessage = 'Service temporarily unavailable. Please try again later.';
+                break;
+            default:
+                // Use server error message if available, otherwise generic message
+                error.userMessage = data?.error || data?.message || `An error occurred (${status}). Please try again.`;
+        }
+
+        // Log error for debugging (only in development)
+        if (import.meta.env.DEV) {
+            console.error('API Error:', {
+                status,
+                message: error.userMessage,
+                data: data,
+                url: error.config?.url
+            });
+        }
+
+        return Promise.reject(error);
+    }
+);
+
+// API cho AI Assistant
+export const aiAPI = {
+    // Kiểm tra trạng thái AI
+    getStatus: async () => {
+        const response = await api.get('/ai/status');
+        return response.data;
+    },
+
+    // Chat với AI
+    chat: async (message, conversationHistory = []) => {
+        const response = await api.post('/ai/chat', {
+            message,
+            conversationHistory
+        });
+        return response.data;
+    },
+
+    // Phân tích dữ liệu
+    analyze: async (dataType = 'overview') => {
+        const response = await api.post('/ai/analyze', {
+            dataType
+        });
+        return response.data;
+    }
+};
+
+// API cho Custom Chatbot
+export const chatbotAPI = {
+    // Kiểm tra trạng thái chatbot
+    getStatus: async () => {
+        const response = await api.get('/chatbot/status');
+        return response.data;
+    },
+
+    // Chat với custom chatbot
+    chat: async (message, conversationHistory = []) => {
+        const response = await api.post('/chatbot/chat', {
+            message,
+            conversationHistory
+        });
+        return response.data;
+    },
+
+    // Lấy danh sách actions có thể thực hiện
+    getActions: async () => {
+        const response = await api.get('/chatbot/actions');
+        return response.data;
+    }
+};
 
 export default api;
 

@@ -1,30 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense, lazy } from 'react';
 import { useAuth } from './contexts/useAuth';
 import { useRole } from './hooks/useRole';
 import { Icons } from './utils/icons';
-import UserL from '../components/UserL';
-import CUser from '../components/CUser';
-import WarehouseL from '../components/WarehouseL';
-import CWarehouse from '../components/CWarehouse';
-import OrderL from '../components/OrderL';
-import COrder from '../components/COrder';
-import ProductL from '../components/ProductL';
-import CProduct from '../components/CProduct';
-import SupplierL from '../components/SupplierL';
-import CSupplier from '../components/CSupplier';
-import Dashboard from '../components/Dashboard';
-import AuditLogs from '../components/AuditLogs';
-import Reports from '../components/Reports';
-import Settings from '../components/Settings';
+import LoadingSpinner from './components/LoadingSpinner';
 import NotificationBell from '../components/NotificationBell';
 import Login from '../components/Login';
 import ResetPassword from '../components/ResetPassword';
 import ThemeToggle from './components/ThemeToggle';
 import Sidebar from './components/Sidebar';
-import VideoCallList from './components/VideoCallList';
-import AdminNotificationPanel from './components/AdminNotificationPanel';
 import { useTheme } from './contexts/ThemeContext';
 import './App.css';
+
+// Lazy load heavy components for better performance
+const UserL = lazy(() => import('../components/UserL'));
+const CUser = lazy(() => import('../components/CUser'));
+const WarehouseL = lazy(() => import('../components/WarehouseL'));
+const CWarehouse = lazy(() => import('../components/CWarehouse'));
+const OrderL = lazy(() => import('../components/OrderL'));
+const COrder = lazy(() => import('../components/COrder'));
+const Payments = lazy(() => import('../components/Payments'));
+const PaymentCallback = lazy(() => import('../components/PaymentCallback'));
+const ProductL = lazy(() => import('../components/ProductL'));
+const CProduct = lazy(() => import('../components/CProduct'));
+const SupplierL = lazy(() => import('../components/SupplierL'));
+const CSupplier = lazy(() => import('../components/CSupplier'));
+const Dashboard = lazy(() => import('../components/Dashboard'));
+const AuditLogs = lazy(() => import('../components/AuditLogs'));
+const Reports = lazy(() => import('../components/Reports'));
+const Settings = lazy(() => import('../components/Settings'));
+const VideoCallList = lazy(() => import('./components/VideoCallList'));
+const AdminNotificationPanel = lazy(() => import('./components/AdminNotificationPanel'));
+const AIChat = lazy(() => import('./components/AIChat'));
+const CustomChatbot = lazy(() => import('./components/CustomChatbot'));
 
 function App() {
   const { isAuthenticated, user, logout, loading, token } = useAuth();
@@ -33,16 +40,72 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [videoCallFromLink, setVideoCallFromLink] = useState(null);
+
+  // Detect mobile breakpoint
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      // Close mobile sidebar when switching to desktop
+      if (window.innerWidth >= 768) {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Handle tab change - close mobile sidebar
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (isMobile) {
+      setIsMobileSidebarOpen(false);
+    }
+  };
 
   const userRoles = getUserRoles();
 
-  // Use direct check instead of function call for better reactivity
-  const authenticated = !!(token && user);
+  // Use isAuthenticated function for proper authentication check
+  const authenticated = isAuthenticated();
+
+  // Also check localStorage as fallback (for immediate check after login)
+  // This ensures we catch authentication state even if React state hasn't updated yet
+  const [authState, setAuthState] = useState(() => {
+    try {
+      const hasToken = !!localStorage.getItem('token');
+      const hasUser = !!localStorage.getItem('user');
+      return hasToken && hasUser;
+    } catch (e) {
+      return false;
+    }
+  });
+
+  // Force re-render when authentication state changes
+  useEffect(() => {
+    // Check both state and localStorage
+    const hasToken = !!(token || localStorage.getItem('token'));
+    const hasUser = !!(user || localStorage.getItem('user'));
+    const isAuth = hasToken && hasUser;
+
+    if (isAuth !== authState) {
+      setAuthState(isAuth);
+    }
+  }, [token, user, authenticated, authState]);
+
+  // Use the most up-to-date authentication state
+  // Prioritize function result, but fallback to localStorage check
+  // Also check localStorage directly as final fallback
+  const tokenInStorage = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const userInStorage = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+  const isUserAuthenticated = authenticated || authState || (!!tokenInStorage && !!userInStorage);
 
   // Check URL params for video call link
   useEffect(() => {
-    if (!authenticated || !user) return;
+    if (!isUserAuthenticated || !user) return;
 
     const urlParams = new URLSearchParams(window.location.search);
     const roomId = urlParams.get('room');
@@ -133,14 +196,40 @@ function App() {
   const resetToken = urlParams.get('token');
   const isResetPasswordPage = window.location.pathname.includes('reset-password') || resetToken;
 
+  // Check if we're on payment callback page
+  // Support both /payment/success and /payment/callback/vnpay formats
+  const isPaymentCallback = window.location.pathname.includes('/payment/') &&
+    (window.location.pathname.includes('/success') ||
+      window.location.pathname.includes('/failed') ||
+      window.location.pathname.includes('/callback/'));
+
   // Show reset password page if token exists (even if authenticated)
   if (isResetPasswordPage) {
     return <ResetPassword />;
   }
 
-  if (!authenticated) {
+  // Show payment callback page (even if authenticated)
+  if (isPaymentCallback) {
+    return <PaymentCallback />;
+  }
+
+  // Check authentication - use both function result and state
+  console.log('[App] Authentication check:', {
+    authenticated,
+    authState,
+    isUserAuthenticated,
+    hasToken: !!token,
+    hasUser: !!user,
+    tokenInStorage: !!localStorage.getItem('token'),
+    userInStorage: !!localStorage.getItem('user')
+  });
+
+  if (!isUserAuthenticated) {
+    console.log('[App] Not authenticated, showing Login');
     return <Login />;
   }
+
+  console.log('[App] Authenticated, showing dashboard');
 
   // Theme-aware colors
   const bgGradient = isDark
@@ -153,7 +242,7 @@ function App() {
   const textSecondary = isDark ? '#cbd5e1' : '#6b7280';
   const borderColor = isDark ? '#334155' : 'rgba(255, 255, 255, 0.18)';
 
-  const sidebarWidth = sidebarCollapsed ? 80 : 280;
+  const sidebarWidth = isMobile ? 0 : (sidebarCollapsed ? 80 : 280);
 
   return (
     <div className="App" style={{
@@ -163,12 +252,58 @@ function App() {
       transition: 'background 0.3s ease',
       display: 'flex'
     }}>
+      {/* Hamburger Menu Button (Mobile only) */}
+      {isMobile && (
+        <button
+          onClick={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          data-hamburger
+          aria-label="Toggle navigation menu"
+          aria-expanded={isMobileSidebarOpen}
+          aria-controls="main-sidebar"
+          tabIndex={0}
+          style={{
+            position: 'fixed',
+            top: '20px',
+            left: '20px',
+            zIndex: 1001,
+            width: '44px',
+            height: '44px',
+            padding: '10px',
+            background: cardBg,
+            border: `1px solid ${borderColor}`,
+            borderRadius: '12px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: isDark
+              ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+              : '0 4px 12px rgba(0, 0, 0, 0.1)',
+            transition: 'all 0.3s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          {isMobileSidebarOpen ? (
+            <Icons.Close size={24} color={isDark ? '#f1f5f9' : '#1f2937'} />
+          ) : (
+            <Icons.Add size={24} color={isDark ? '#f1f5f9' : '#1f2937'} style={{ transform: 'rotate(0deg)' }} />
+          )}
+        </button>
+      )}
+
       {/* Sidebar */}
       <Sidebar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         isCollapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        isMobileOpen={isMobileSidebarOpen}
+        onMobileClose={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}
@@ -257,6 +392,8 @@ function App() {
             <NotificationBell />
             <button
               onClick={logout}
+              aria-label="Logout"
+              tabIndex={0}
               style={{
                 padding: '12px 24px',
                 background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
@@ -288,53 +425,72 @@ function App() {
 
         {/* Main Content */}
         <div style={{ maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
-          {activeTab === 'dashboard' && (
-            <Dashboard />
+          <Suspense fallback={<LoadingSpinner text="Loading..." />}>
+            {activeTab === 'dashboard' && (
+              <Dashboard />
+            )}
+            {activeTab === 'users' && (
+              <>
+                <CUser onUserCreated={handleUserCreated} />
+                <UserL key={refreshKey} />
+              </>
+            )}
+            {activeTab === 'warehouses' && (
+              <>
+                <CWarehouse onWarehouseCreated={handleWarehouseCreated} />
+                <WarehouseL key={`warehouse-${refreshKey}`} />
+              </>
+            )}
+            {activeTab === 'orders' && (
+              <>
+                <COrder onOrderCreated={handleOrderCreated} />
+                <OrderL key={`order-${refreshKey}`} />
+              </>
+            )}
+            {activeTab === 'payments' && (
+              <Payments />
+            )}
+            {activeTab === 'products' && (
+              <>
+                <CProduct onProductCreated={handleProductCreated} />
+                <ProductL key={`product-${refreshKey}`} />
+              </>
+            )}
+            {activeTab === 'suppliers' && (
+              <>
+                <CSupplier onSupplierCreated={handleSupplierCreated} />
+                <SupplierL key={`supplier-${refreshKey}`} />
+              </>
+            )}
+            {activeTab === 'audit-logs' && (
+              <AuditLogs />
+            )}
+            {activeTab === 'reports' && (
+              <Reports />
+            )}
+            {activeTab === 'video-call' && (
+              <VideoCallList joinFromLink={videoCallFromLink} />
+            )}
+            {activeTab === 'admin-notifications' && userRoles.some(r => r.toLowerCase() === 'admin') && (
+              <AdminNotificationPanel />
+            )}
+            {activeTab === 'settings' && (
+              <Settings />
+            )}
+          </Suspense>
+
+          {/* AI Chat - Floating widget (Gemini AI) */}
+          {isAuthenticated && (
+            <Suspense fallback={null}>
+              <AIChat />
+            </Suspense>
           )}
-          {activeTab === 'users' && (
-            <>
-              <CUser onUserCreated={handleUserCreated} />
-              <UserL key={refreshKey} />
-            </>
-          )}
-          {activeTab === 'warehouses' && (
-            <>
-              <CWarehouse onWarehouseCreated={handleWarehouseCreated} />
-              <WarehouseL key={`warehouse-${refreshKey}`} />
-            </>
-          )}
-          {activeTab === 'orders' && (
-            <>
-              <COrder onOrderCreated={handleOrderCreated} />
-              <OrderL key={`order-${refreshKey}`} />
-            </>
-          )}
-          {activeTab === 'products' && (
-            <>
-              <CProduct onProductCreated={handleProductCreated} />
-              <ProductL key={`product-${refreshKey}`} />
-            </>
-          )}
-          {activeTab === 'suppliers' && (
-            <>
-              <CSupplier onSupplierCreated={handleSupplierCreated} />
-              <SupplierL key={`supplier-${refreshKey}`} />
-            </>
-          )}
-          {activeTab === 'audit-logs' && (
-            <AuditLogs />
-          )}
-          {activeTab === 'reports' && (
-            <Reports />
-          )}
-          {activeTab === 'video-call' && (
-            <VideoCallList joinFromLink={videoCallFromLink} />
-          )}
-          {activeTab === 'admin-notifications' && userRoles.some(r => r.toLowerCase() === 'admin') && (
-            <AdminNotificationPanel />
-          )}
-          {activeTab === 'settings' && (
-            <Settings />
+
+          {/* Custom Chatbot - Floating widget (Custom AI with Actions) */}
+          {isAuthenticated && (
+            <Suspense fallback={null}>
+              <CustomChatbot />
+            </Suspense>
           )}
         </div>
       </div>

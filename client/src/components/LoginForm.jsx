@@ -20,13 +20,58 @@ const LoginForm = ({ onForgotPasswordClick, themeColors }) => {
         setError('');
         setLoading(true);
 
-        const result = await login(email, password);
+        console.log('[LoginForm] Starting login process', { email });
 
-        if (!result.success) {
-            setError(result.error);
+        try {
+            const result = await login(email, password);
+
+            console.log('[LoginForm] Login result:', {
+                hasResult: !!result,
+                success: result?.success,
+                error: result?.error,
+                resultKeys: result ? Object.keys(result) : []
+            });
+
+            if (result && result.success) {
+                console.log('[LoginForm] Login successful, waiting for localStorage...');
+
+                // Login successful - state will be updated by AuthContext
+                // Wait a bit longer to ensure localStorage is saved
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Verify login was successful by checking localStorage (source of truth)
+                const token = localStorage.getItem('token');
+                const user = localStorage.getItem('user');
+
+                console.log('[LoginForm] Checking localStorage:', {
+                    hasToken: !!token,
+                    hasUser: !!user,
+                    tokenLength: token?.length,
+                    userLength: user?.length
+                });
+
+                if (token && user) {
+                    console.log('[LoginForm] Redirecting to home...');
+                    // Force page reload to ensure App.jsx re-evaluates authentication
+                    // This is more reliable than waiting for state updates
+                    window.location.href = '/';
+                } else {
+                    console.error('[LoginForm] localStorage not set after login');
+                    setError('Login successful but state not saved. Please try again.');
+                    setLoading(false);
+                }
+            } else {
+                const errorMsg = result?.error || 'Login failed. Please check your credentials.';
+                console.error('[LoginForm] Login failed:', errorMsg);
+                setError(errorMsg);
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error('[LoginForm] Login exception:', err);
+            const errorMsg = err.response?.data?.error || err.message || 'An error occurred during login';
+            setError(errorMsg);
+            setLoading(false);
         }
-
-        setLoading(false);
     };
 
     return (
@@ -96,7 +141,7 @@ const LoginForm = ({ onForgotPasswordClick, themeColors }) => {
                 fullWidth
                 loading={loading}
                 icon={<Icons.Security size={20} />}
-                style={{ 
+                style={{
                     marginTop: '4px',
                     height: '52px',
                     fontSize: '16px',

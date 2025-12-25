@@ -22,6 +22,18 @@ const UserL = () => {
     const [editingUserId, setEditingUserId] = useState(null);
     const [managingRolesUserId, setManagingRolesUserId] = useState(null);
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, action: null, data: null });
+    const [isMobile, setIsMobile] = useState(false);
+
+    // Detect mobile breakpoint
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -508,271 +520,403 @@ const UserL = () => {
                         isAdmin={isAdmin}
                     />
 
-                    <div style={{
-                        overflowX: 'auto',
-                        borderRadius: '16px',
-                        border: '1px solid #e5e7eb',
-                        background: 'white',
-                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-                    }}>
-                        <table style={{
-                            width: '100%',
-                            borderCollapse: 'collapse',
-                            backgroundColor: 'white'
+                    {/* Mobile Card View */}
+                    {isMobile ? (
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '16px'
                         }}>
-                            <thead>
-                                <tr style={{
-                                    background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
-                                    borderBottom: '2px solid #e5e7eb'
-                                }}>
+                            {currentUsers.map((user) => (
+                                <div
+                                    key={user.id}
+                                    style={{
+                                        background: selectedUsers.has(user.id) ? '#fef3c7' : 'white',
+                                        borderRadius: '16px',
+                                        padding: '20px',
+                                        border: '1px solid #e5e7eb',
+                                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+                                    }}
+                                >
                                     {isAdmin && (
-                                        <th style={{
-                                            padding: '16px 20px',
-                                            textAlign: 'center',
-                                            fontWeight: '600',
-                                            color: '#374151',
-                                            fontSize: '14px',
-                                            textTransform: 'uppercase',
-                                            letterSpacing: '0.5px',
-                                            borderBottom: '2px solid #e5e7eb',
-                                            width: '50px'
-                                        }}>
+                                        <div style={{ marginBottom: '12px' }}>
                                             <input
                                                 type="checkbox"
-                                                checked={isAllSelected}
-                                                onChange={isAllSelected ? handleDeselectAll : handleSelectAll}
+                                                checked={selectedUsers.has(user.id)}
+                                                onChange={() => handleSelectUser(user.id)}
                                                 style={{
                                                     width: '18px',
                                                     height: '18px',
                                                     cursor: 'pointer'
                                                 }}
                                             />
-                                        </th>
+                                        </div>
                                     )}
-                                    <th style={{
-                                        padding: '16px 20px',
-                                        textAlign: 'left',
-                                        fontWeight: '600',
-                                        color: '#374151',
-                                        fontSize: '14px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px',
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>ID</div>
+                                        <div style={{ fontSize: '16px', fontWeight: '600', color: '#1f2937' }}>{user.id}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Họ tên</div>
+                                        <div style={{ fontSize: '16px', fontWeight: '500', color: '#1f2937' }}>{user.fullname}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Email</div>
+                                        <div style={{ fontSize: '14px', color: '#6b7280' }}>{user.email}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Số điện thoại</div>
+                                        <div style={{ fontSize: '14px', color: '#6b7280' }}>{user.number || <span style={{ color: '#9ca3af' }}>-</span>}</div>
+                                    </div>
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Địa chỉ</div>
+                                        <div style={{ fontSize: '14px', color: '#6b7280' }}>{user.address || <span style={{ color: '#9ca3af' }}>-</span>}</div>
+                                    </div>
+                                    <div style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: '8px'
+                                    }}>
+                                        <button
+                                            onClick={() => setEditingUserId(user.id)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 16px',
+                                                background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '10px',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: '600',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.3s',
+                                                boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
+                                            }}
+                                        >
+                                            <Icons.Edit size={16} /> Edit
+                                        </button>
+                                        <button
+                                            onClick={() => setManagingRolesUserId(user.id)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 16px',
+                                                background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '10px',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: '600',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.3s',
+                                                boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
+                                            }}
+                                        >
+                                            <Icons.Security size={16} /> Quyền
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(user.id)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '10px 16px',
+                                                background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '10px',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: '600',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.3s',
+                                                boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
+                                            }}
+                                        >
+                                            <Icons.Delete size={16} /> Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        /* Desktop Table View */
+                        <div style={{
+                            overflowX: 'auto',
+                            borderRadius: '16px',
+                            border: '1px solid #e5e7eb',
+                            background: 'white',
+                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                            WebkitOverflowScrolling: 'touch'
+                        }}>
+                            <table style={{
+                                width: '100%',
+                                minWidth: '800px',
+                                borderCollapse: 'collapse',
+                                backgroundColor: 'white'
+                            }}>
+                                <thead>
+                                    <tr style={{
+                                        background: 'linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%)',
                                         borderBottom: '2px solid #e5e7eb'
-                                    }}>ID</th>
-                                    <th style={{
-                                        padding: '16px 20px',
-                                        textAlign: 'left',
-                                        fontWeight: '600',
-                                        color: '#374151',
-                                        fontSize: '14px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                    }}>Họ tên</th>
-                                    <th style={{
-                                        padding: '16px 20px',
-                                        textAlign: 'left',
-                                        fontWeight: '600',
-                                        color: '#374151',
-                                        fontSize: '14px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                    }}>Email</th>
-                                    <th style={{
-                                        padding: '16px 20px',
-                                        textAlign: 'left',
-                                        fontWeight: '600',
-                                        color: '#374151',
-                                        fontSize: '14px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                    }}>Số điện thoại</th>
-                                    <th style={{
-                                        padding: '16px 20px',
-                                        textAlign: 'left',
-                                        fontWeight: '600',
-                                        color: '#374151',
-                                        fontSize: '14px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                    }}>Địa chỉ</th>
-                                    <th style={{
-                                        padding: '16px 20px',
-                                        textAlign: 'left',
-                                        fontWeight: '600',
-                                        color: '#374151',
-                                        fontSize: '14px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px'
-                                    }}>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {currentUsers.map((user, index) => (
-                                    <tr
-                                        key={user.id}
-                                        style={{
-                                            borderBottom: '1px solid #e9ecef',
-                                            transition: 'background-color 0.2s',
-                                            backgroundColor: selectedUsers.has(user.id) ? '#fef3c7' : 'white'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!selectedUsers.has(user.id)) {
-                                                e.currentTarget.style.backgroundColor = '#f8f9fa';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!selectedUsers.has(user.id)) {
-                                                e.currentTarget.style.backgroundColor = 'white';
-                                            }
-                                        }}
-                                    >
+                                    }}>
                                         {isAdmin && (
-                                            <td style={{
+                                            <th style={{
                                                 padding: '16px 20px',
-                                                textAlign: 'center'
+                                                textAlign: 'center',
+                                                fontWeight: '600',
+                                                color: '#374151',
+                                                fontSize: '14px',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.5px',
+                                                borderBottom: '2px solid #e5e7eb',
+                                                width: '50px'
                                             }}>
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedUsers.has(user.id)}
-                                                    onChange={() => handleSelectUser(user.id)}
+                                                    checked={isAllSelected}
+                                                    onChange={isAllSelected ? handleDeselectAll : handleSelectAll}
                                                     style={{
                                                         width: '18px',
                                                         height: '18px',
                                                         cursor: 'pointer'
                                                     }}
                                                 />
-                                            </td>
+                                            </th>
                                         )}
-                                        <td style={{
+                                        <th style={{
                                             padding: '16px 20px',
-                                            color: '#1f2937',
+                                            textAlign: 'left',
+                                            fontWeight: '600',
+                                            color: '#374151',
                                             fontSize: '14px',
-                                            fontWeight: '600'
-                                        }}>{user.id}</td>
-                                        <td style={{
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px',
+                                            borderBottom: '2px solid #e5e7eb'
+                                        }}>ID</th>
+                                        <th style={{
                                             padding: '16px 20px',
-                                            color: '#1f2937',
+                                            textAlign: 'left',
+                                            fontWeight: '600',
+                                            color: '#374151',
                                             fontSize: '14px',
-                                            fontWeight: '500'
-                                        }}>{user.fullname}</td>
-                                        <td style={{
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px'
+                                        }}>Họ tên</th>
+                                        <th style={{
                                             padding: '16px 20px',
-                                            color: '#6b7280',
-                                            fontSize: '14px'
-                                        }}>{user.email}</td>
-                                        <td style={{
-                                            padding: '16px 20px',
-                                            color: '#6b7280',
-                                            fontSize: '14px'
-                                        }}>{user.number || <span style={{ color: '#9ca3af' }}>-</span>}</td>
-                                        <td style={{
-                                            padding: '16px 20px',
-                                            color: '#6b7280',
+                                            textAlign: 'left',
+                                            fontWeight: '600',
+                                            color: '#374151',
                                             fontSize: '14px',
-                                            maxWidth: '200px',
-                                            overflow: 'hidden',
-                                            textOverflow: 'ellipsis',
-                                            whiteSpace: 'nowrap'
-                                        }}>{user.address || <span style={{ color: '#9ca3af' }}>-</span>}</td>
-                                        <td style={{
-                                            padding: '16px 20px'
-                                        }}>
-                                            <div style={{
-                                                display: 'flex',
-                                                gap: '10px',
-                                                flexWrap: 'wrap'
-                                            }}>
-                                                <button
-                                                    onClick={() => setEditingUserId(user.id)}
-                                                    style={{
-                                                        padding: '8px 16px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '10px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '600',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.3s',
-                                                        boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(71, 85, 105, 0.3)';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.transform = 'translateY(0)';
-                                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
-                                                    }}
-                                                >
-                                                    <Icons.Edit size={16} /> Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => setManagingRolesUserId(user.id)}
-                                                    style={{
-                                                        padding: '8px 16px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '10px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '600',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.3s',
-                                                        boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(71, 85, 105, 0.3)';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.transform = 'translateY(0)';
-                                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
-                                                    }}
-                                                >
-                                                    <Icons.Security size={16} /> Quyền
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(user.id)}
-                                                    style={{
-                                                        padding: '8px 16px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '10px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '600',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '6px',
-                                                        transition: 'all 0.3s',
-                                                        boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(71, 85, 105, 0.3)';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.transform = 'translateY(0)';
-                                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
-                                                    }}
-                                                >
-                                                    <Icons.Delete size={16} /> Delete
-                                                </button>
-                                            </div>
-                                        </td>
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px'
+                                        }}>Email</th>
+                                        <th style={{
+                                            padding: '16px 20px',
+                                            textAlign: 'left',
+                                            fontWeight: '600',
+                                            color: '#374151',
+                                            fontSize: '14px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px'
+                                        }}>Số điện thoại</th>
+                                        <th style={{
+                                            padding: '16px 20px',
+                                            textAlign: 'left',
+                                            fontWeight: '600',
+                                            color: '#374151',
+                                            fontSize: '14px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px'
+                                        }}>Địa chỉ</th>
+                                        <th style={{
+                                            padding: '16px 20px',
+                                            textAlign: 'left',
+                                            fontWeight: '600',
+                                            color: '#374151',
+                                            fontSize: '14px',
+                                            textTransform: 'uppercase',
+                                            letterSpacing: '0.5px'
+                                        }}>Thao tác</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {currentUsers.map((user, index) => (
+                                        <tr
+                                            key={user.id}
+                                            style={{
+                                                borderBottom: '1px solid #e9ecef',
+                                                transition: 'background-color 0.2s',
+                                                backgroundColor: selectedUsers.has(user.id) ? '#fef3c7' : 'white'
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (!selectedUsers.has(user.id)) {
+                                                    e.currentTarget.style.backgroundColor = '#f8f9fa';
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (!selectedUsers.has(user.id)) {
+                                                    e.currentTarget.style.backgroundColor = 'white';
+                                                }
+                                            }}
+                                        >
+                                            {isAdmin && (
+                                                <td style={{
+                                                    padding: '16px 20px',
+                                                    textAlign: 'center'
+                                                }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedUsers.has(user.id)}
+                                                        onChange={() => handleSelectUser(user.id)}
+                                                        style={{
+                                                            width: '18px',
+                                                            height: '18px',
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    />
+                                                </td>
+                                            )}
+                                            <td style={{
+                                                padding: '16px 20px',
+                                                color: '#1f2937',
+                                                fontSize: '14px',
+                                                fontWeight: '600'
+                                            }}>{user.id}</td>
+                                            <td style={{
+                                                padding: '16px 20px',
+                                                color: '#1f2937',
+                                                fontSize: '14px',
+                                                fontWeight: '500'
+                                            }}>{user.fullname}</td>
+                                            <td style={{
+                                                padding: '16px 20px',
+                                                color: '#6b7280',
+                                                fontSize: '14px'
+                                            }}>{user.email}</td>
+                                            <td style={{
+                                                padding: '16px 20px',
+                                                color: '#6b7280',
+                                                fontSize: '14px'
+                                            }}>{user.number || <span style={{ color: '#9ca3af' }}>-</span>}</td>
+                                            <td style={{
+                                                padding: '16px 20px',
+                                                color: '#6b7280',
+                                                fontSize: '14px',
+                                                maxWidth: '200px',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap'
+                                            }}>{user.address || <span style={{ color: '#9ca3af' }}>-</span>}</td>
+                                            <td style={{
+                                                padding: '16px 20px'
+                                            }}>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    gap: '10px',
+                                                    flexWrap: 'wrap'
+                                                }}>
+                                                    <button
+                                                        onClick={() => setEditingUserId(user.id)}
+                                                        style={{
+                                                            padding: '8px 16px',
+                                                            background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '10px',
+                                                            cursor: 'pointer',
+                                                            fontSize: '13px',
+                                                            fontWeight: '600',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            transition: 'all 0.3s',
+                                                            boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(71, 85, 105, 0.3)';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.transform = 'translateY(0)';
+                                                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
+                                                        }}
+                                                    >
+                                                        <Icons.Edit size={16} /> Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setManagingRolesUserId(user.id)}
+                                                        style={{
+                                                            padding: '8px 16px',
+                                                            background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '10px',
+                                                            cursor: 'pointer',
+                                                            fontSize: '13px',
+                                                            fontWeight: '600',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            transition: 'all 0.3s',
+                                                            boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(71, 85, 105, 0.3)';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.transform = 'translateY(0)';
+                                                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
+                                                        }}
+                                                    >
+                                                        <Icons.Security size={16} /> Quyền
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDelete(user.id)}
+                                                        style={{
+                                                            padding: '8px 16px',
+                                                            background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '10px',
+                                                            cursor: 'pointer',
+                                                            fontSize: '13px',
+                                                            fontWeight: '600',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '6px',
+                                                            transition: 'all 0.3s',
+                                                            boxShadow: '0 2px 4px rgba(71, 85, 105, 0.2)'
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            e.currentTarget.style.transform = 'translateY(-2px)';
+                                                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(71, 85, 105, 0.3)';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.transform = 'translateY(0)';
+                                                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
+                                                        }}
+                                                    >
+                                                        <Icons.Delete size={16} /> Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
 
                     {/* Pagination */}
                     {totalPages > 1 && (

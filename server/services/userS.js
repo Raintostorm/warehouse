@@ -5,6 +5,46 @@ const bcrypt = require('bcrypt');
 const saltRounds = 10;
 const { sendWelcomeEmail } = require('../utils/emailService');
 
+// Helper function để generate user ID tự động
+async function generateUserId() {
+    try {
+        // Lấy user ID lớn nhất hiện tại (format: U001, U002, ...)
+        // Support both snake_case and PascalCase schemas
+        const { queryWithFallback } = require('../utils/dbHelper');
+        const result = await queryWithFallback(
+            `SELECT id FROM users WHERE id LIKE 'U%' AND LENGTH(id) <= 10 ORDER BY CAST(SUBSTRING(id FROM 2) AS INTEGER) DESC LIMIT 1`,
+            `SELECT "Id" as id FROM "Users" WHERE "Id" LIKE 'U%' AND LENGTH("Id") <= 10 ORDER BY CAST(SUBSTRING("Id" FROM 2) AS INTEGER) DESC LIMIT 1`
+        );
+
+        if (result.rows.length === 0) {
+            // Chưa có user nào, bắt đầu từ U001
+            return 'U001';
+        }
+
+        const lastId = result.rows[0].id || result.rows[0].Id;
+        // Extract number từ UXXX
+        const match = lastId.match(/^U(\d+)$/);
+        if (match) {
+            const nextNumber = parseInt(match[1], 10) + 1;
+            // Format với 3 digits (001, 002, ...) nhưng đảm bảo không quá 10 ký tự
+            const paddedNumber = nextNumber.toString().padStart(3, '0');
+            const newId = `U${paddedNumber}`;
+            // Nếu quá 10 ký tự, dùng format ngắn hơn
+            if (newId.length > 10) {
+                return `U${nextNumber}`;
+            }
+            return newId;
+        }
+
+        // Fallback nếu format không đúng
+        return `U${Date.now().toString().slice(-6)}`;
+    } catch (error) {
+        console.error('Error generating user ID:', error);
+        // Fallback to timestamp-based ID
+        return `U${Date.now().toString().slice(-6)}`;
+    }
+}
+
 const UserS = {
     findAll: async () => {
         const users = await UsersM.findAll();
@@ -33,7 +73,7 @@ const UserS = {
     findByEmail: async (email) => {
         const user = await UsersM.findByEmail(email);
         if (!user) {
-            throw new Error('User not found');
+            return null; // Return null instead of throwing for existence checks
         }
         // Remove password from response
         const userWithoutPassword = { ...user };
@@ -44,7 +84,7 @@ const UserS = {
     findByNumber: async (number) => {
         const user = await UsersM.findByNumber(number);
         if (!user) {
-            throw new Error('User not found');
+            return null; // Return null instead of throwing for existence checks
         }
         // Remove password from response
         const userWithoutPassword = { ...user };
@@ -53,12 +93,30 @@ const UserS = {
         return userWithoutPassword;
     },
     createUser: async (userData) => {
-        if (!userData.id || !userData.fullname || !userData.email) {
-            throw new Error('Missing required fields: id, fullname, email');
+        if (!userData.fullname || !userData.email) {
+            throw new Error('Missing required fields: fullname, email');
         }
-        const existingUserById = await UsersM.findById(userData.id);
-        if (existingUserById) {
-            throw new Error('User ID already exists');
+        
+        // Auto-generate user ID if not provided
+        if (!userData.id) {
+            userData.id = await generateUserId();
+        }
+        
+        // Check if generated ID already exists (retry if needed)
+        let attempts = 0;
+        const maxAttempts = 10;
+        while (attempts < maxAttempts) {
+            const existingUserById = await UsersM.findById(userData.id);
+            if (!existingUserById) {
+                break; // ID is available
+            }
+            // ID exists, generate new one
+            userData.id = await generateUserId();
+            attempts++;
+        }
+        
+        if (attempts >= maxAttempts) {
+            throw new Error('Failed to generate unique user ID after multiple attempts');
         }
         const existingUserByEmail = await UsersM.findByEmail(userData.email);
         if (existingUserByEmail) {

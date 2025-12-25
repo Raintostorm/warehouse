@@ -19,3 +19,8 @@ node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Fonts (large files, should be downloaded separately)
+fonts/*.ttf
+fonts/*.woff
+fonts/*.woff2

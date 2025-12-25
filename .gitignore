@@ -9,6 +9,7 @@
 client_secret_*.json
 *client_secret*.json
 credentials.json
+packages/credentials/
 
 # Dependencies
 node_modules/
@@ -82,3 +83,6 @@ dump.rdb
 *.key
 *.crt
 *.cert
+
+# Documentation (optional - uncomment if you want to exclude docs from git)
+# docs/

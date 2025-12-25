@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { orderAPI } from '../services/api';
+import { orderAPI, billAPI, paymentAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
@@ -7,6 +7,7 @@ import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
 import CreateBill from './CreateBill';
+import UOrder from './UOrder';
 
 const OrderL = () => {
     const { hasRole } = useRole();
@@ -21,6 +22,9 @@ const OrderL = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
     const [billModal, setBillModal] = useState({ isOpen: false });
+    const [showBillsModal, setShowBillsModal] = useState({ isOpen: false, orderId: null, bills: [], paidBills: [], unpaidBills: [] });
+    const [showPaidBills, setShowPaidBills] = useState(true);
+    const [showUnpaidBills, setShowUnpaidBills] = useState(true);
 
     useEffect(() => {
         fetchOrders();
@@ -47,6 +51,102 @@ const OrderL = () => {
         setConfirmModal({ isOpen: true, id });
     };
 
+    const handleShowBills = async (orderId) => {
+        try {
+            let bills = [];
+            if (orderId) {
+                // Show bills for specific order
+                const response = await billAPI.getBillsByOrderId(orderId);
+                if (response.success) {
+                    bills = response.data || [];
+                } else {
+                    showError('Failed to fetch bills: ' + response.message);
+                    return;
+                }
+            } else {
+                // Show all bills
+                const response = await billAPI.getAllBills();
+                if (response.success) {
+                    bills = response.data || [];
+                } else {
+                    showError('Failed to fetch bills: ' + response.message);
+                    return;
+                }
+            }
+
+            // Fetch all payments to check bill payment status
+            const paymentsResponse = await paymentAPI.getAllPayments();
+            const allPayments = paymentsResponse.success ? (paymentsResponse.data || []) : [];
+
+            // Categorize bills into paid and unpaid
+            const paidBills = [];
+            const unpaidBills = [];
+
+            for (const bill of bills) {
+                // Find payments by bill_id first, then fallback to order_id if bill_id is null
+                let billPayments = allPayments.filter(p => 
+                    (p.bill_id === bill.id || p.billId === bill.id) && 
+                    (p.bill_id || p.billId) // Only if bill_id exists
+                );
+                
+                // If no payments found by bill_id, try to find by order_id
+                if (billPayments.length === 0) {
+                    const billOrderId = bill.order_id || bill.orderId;
+                    billPayments = allPayments.filter(p => 
+                        (p.order_id === billOrderId || p.orderId === billOrderId)
+                    );
+                }
+                
+                const totalPaid = billPayments
+                    .filter(p => {
+                        const status = p.payment_status || p.paymentStatus;
+                        return status === 'completed';
+                    })
+                    .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                
+                const billTotal = parseFloat(bill.total_amount || bill.totalAmount || 0);
+                const isPaid = billTotal > 0 && totalPaid >= billTotal;
+
+                // Debug logging
+                console.log('Bill payment check:', {
+                    billId: bill.id,
+                    orderId: bill.order_id || bill.orderId,
+                    billTotal,
+                    totalPaid,
+                    isPaid,
+                    billStatus: bill.status,
+                    paymentsFound: billPayments.length,
+                    payments: billPayments.map(p => ({ 
+                        id: p.id, 
+                        amount: p.amount, 
+                        status: p.payment_status || p.paymentStatus, 
+                        bill_id: p.bill_id || p.billId,
+                        order_id: p.order_id || p.orderId
+                    }))
+                });
+
+                if (isPaid || bill.status === 'paid') {
+                    paidBills.push(bill);
+                } else if (bill.status !== 'cancelled') {
+                    unpaidBills.push(bill);
+                }
+            }
+
+            setShowBillsModal({ 
+                isOpen: true, 
+                orderId: orderId || 'All Orders', 
+                bills: bills,
+                paidBills: paidBills,
+                unpaidBills: unpaidBills
+            });
+            // Reset toggle states when opening modal
+            setShowPaidBills(true);
+            setShowUnpaidBills(true);
+        } catch (err) {
+            showError('Failed to fetch bills: ' + (err.response?.data?.error || err.message));
+        }
+    };
+
     const confirmDelete = async () => {
         const id = confirmModal.id;
         try {
@@ -64,13 +164,17 @@ const OrderL = () => {
     };
 
     const filteredOrders = useMemo(() => {
-        if (!searchTerm) return orders;
+        // Filter out gateway_payment orders (these are temporary orders created for bills/payments)
+        // These should only appear in "Show Bills", not in the orders list
+        const validOrders = orders.filter(o => o.type !== 'gateway_payment');
+        
+        if (!searchTerm) return validOrders;
         const term = searchTerm.toLowerCase();
-        return orders.filter(o => 
+        return validOrders.filter(o =>
             o.id?.toLowerCase().includes(term) ||
             o.type?.toLowerCase().includes(term) ||
             o.customer_name?.toLowerCase().includes(term) ||
-            o.u_id?.toLowerCase().includes(term)
+            (o.user_id || o.userId || o.u_id || o.uId)?.toLowerCase().includes(term)
         );
     }, [orders, searchTerm]);
 
@@ -126,7 +230,7 @@ const OrderL = () => {
 
     if (!isAdmin) {
         return (
-            <div style={{ 
+            <div style={{
                 padding: '20px',
                 textAlign: 'center',
                 border: '1px solid #64748b',
@@ -172,24 +276,47 @@ const OrderL = () => {
                         Total: <strong>{filteredOrders.length}</strong> orders
                     </p>
                 </div>
-                <button
-                    onClick={() => setBillModal({ isOpen: true })}
-                    style={{
-                        padding: '10px 20px',
-                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        fontWeight: '500',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px'
-                    }}
-                >
-                    <Icons.Success size={18} /> Create Bill
-                </button>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    <button
+                        onClick={() => setBillModal({ isOpen: true })}
+                        style={{
+                            padding: '10px 20px',
+                            background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        <Icons.Success size={18} /> Create Bill
+                    </button>
+                    <button
+                        onClick={() => {
+                            // Show bills for all orders - open modal with all bills
+                            handleShowBills(null);
+                        }}
+                        style={{
+                            padding: '10px 20px',
+                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                        }}
+                    >
+                        <Icons.File size={18} /> Show Bills
+                    </button>
+                </div>
                 <button
                     onClick={fetchOrders}
                     style={{
@@ -208,8 +335,8 @@ const OrderL = () => {
                 >
                     <Icons.Refresh size={18} /> Refresh
                 </button>
-                <ExportImportButtons 
-                    tableName="orders" 
+                <ExportImportButtons
+                    tableName="orders"
                     tableLabel="Orders"
                     onImportSuccess={fetchOrders}
                 />
@@ -310,30 +437,14 @@ const OrderL = () => {
                                         <td style={{ padding: '14px 16px', color: '#333', fontSize: '14px' }}>{order.type || <span style={{ color: '#999' }}>-</span>}</td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{order.date ? new Date(order.date).toLocaleDateString('vi-VN') : <span style={{ color: '#999' }}>-</span>}</td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{order.customer_name || <span style={{ color: '#999' }}>-</span>}</td>
-                                        <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{order.u_id || <span style={{ color: '#999' }}>-</span>}</td>
+                                        <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px', fontWeight: '500' }}>
+                                            {order.user_id || order.userId || order.u_id || order.uId || <span style={{ color: '#999' }}>-</span>}
+                                        </td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px', fontWeight: '500' }}>
                                             {order.total ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.total) : <span style={{ color: '#999' }}>-</span>}
                                         </td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                                <button
-                                                    onClick={() => setBillModal({ isOpen: true })}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #059669 0%, #047857 100%)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '500',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        gap: '4px'
-                                                    }}
-                                                >
-                                                    <Icons.Success size={16} /> Bill
-                                                </button>
                                                 <button
                                                     onClick={() => setEditingId(order.id)}
                                                     style={{
@@ -395,6 +506,309 @@ const OrderL = () => {
                 <CreateBill
                     onClose={() => setBillModal({ isOpen: false })}
                 />
+            )}
+            {editingId && (
+                <UOrder
+                    orderId={editingId}
+                    onOrderUpdated={() => {
+                        fetchOrders();
+                        setEditingId(null);
+                    }}
+                    onClose={() => setEditingId(null)}
+                />
+            )}
+
+            {/* Show Bills Modal */}
+            {showBillsModal.isOpen && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    zIndex: 1000
+                }}
+                onClick={() => setShowBillsModal({ isOpen: false, orderId: null, bills: [] })}
+                >
+                    <div style={{
+                        backgroundColor: 'white',
+                        borderRadius: '12px',
+                        padding: '30px',
+                        maxWidth: '800px',
+                        width: '90%',
+                        maxHeight: '80vh',
+                        overflowY: 'auto',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: '20px'
+                        }}>
+                            <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#333' }}>
+                                Bills for Order: {showBillsModal.orderId}
+                            </h2>
+                            <button
+                                onClick={() => setShowBillsModal({ isOpen: false, orderId: null, bills: [], paidBills: [], unpaidBills: [] })}
+                                style={{
+                                    padding: '8px 16px',
+                                    background: '#ef4444',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        {showBillsModal.bills.length === 0 ? (
+                            <p style={{ color: '#666', textAlign: 'center', padding: '40px' }}>
+                                No bills found{showBillsModal.orderId !== 'All Orders' ? ' for this order' : ''}.
+                            </p>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                {/* Toggle Buttons */}
+                                <div style={{ display: 'flex', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                                    {showBillsModal.unpaidBills.length > 0 && (
+                                        <button
+                                            onClick={() => setShowUnpaidBills(!showUnpaidBills)}
+                                            style={{
+                                                padding: '8px 16px',
+                                                background: showUnpaidBills ? 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' : '#e5e7eb',
+                                                color: showUnpaidBills ? 'white' : '#6b7280',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: '500',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px'
+                                            }}
+                                        >
+                                            <span style={{ 
+                                                padding: '2px 6px', 
+                                                borderRadius: '4px', 
+                                                backgroundColor: showUnpaidBills ? 'rgba(255,255,255,0.3)' : '#d1d5db', 
+                                                color: showUnpaidBills ? 'white' : '#6b7280',
+                                                fontSize: '12px',
+                                                fontWeight: '600'
+                                            }}>
+                                                {showBillsModal.unpaidBills.length}
+                                            </span>
+                                            Bills Chưa Thanh Toán
+                                        </button>
+                                    )}
+                                    {showBillsModal.paidBills.length > 0 && (
+                                        <button
+                                            onClick={() => setShowPaidBills(!showPaidBills)}
+                                            style={{
+                                                padding: '8px 16px',
+                                                background: showPaidBills ? 'linear-gradient(135deg, #059669 0%, #047857 100%)' : '#e5e7eb',
+                                                color: showPaidBills ? 'white' : '#6b7280',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontSize: '14px',
+                                                fontWeight: '500',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px'
+                                            }}
+                                        >
+                                            <span style={{ 
+                                                padding: '2px 6px', 
+                                                borderRadius: '4px', 
+                                                backgroundColor: showPaidBills ? 'rgba(255,255,255,0.3)' : '#d1d5db', 
+                                                color: showPaidBills ? 'white' : '#6b7280',
+                                                fontSize: '12px',
+                                                fontWeight: '600'
+                                            }}>
+                                                {showBillsModal.paidBills.length}
+                                            </span>
+                                            Bills Đã Thanh Toán
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Unpaid Bills Section */}
+                                {showUnpaidBills && showBillsModal.unpaidBills.length > 0 && (
+                                    <div>
+                                        <h3 style={{ 
+                                            margin: '0 0 12px 0', 
+                                            fontSize: '18px', 
+                                            fontWeight: '600', 
+                                            color: '#92400e',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
+                                        }}>
+                                            <span style={{ 
+                                                padding: '4px 8px', 
+                                                borderRadius: '4px', 
+                                                backgroundColor: '#fef3c7', 
+                                                color: '#92400e',
+                                                fontSize: '12px',
+                                                fontWeight: '600'
+                                            }}>
+                                                {showBillsModal.unpaidBills.length}
+                                            </span>
+                                            Bills Chưa Thanh Toán
+                                        </h3>
+                                        <div style={{
+                                            overflowX: 'auto',
+                                            borderRadius: '8px',
+                                            border: '1px solid #e0e0e0'
+                                        }}>
+                                            <table style={{
+                                                width: '100%',
+                                                borderCollapse: 'collapse',
+                                                backgroundColor: 'white'
+                                            }}>
+                                                <thead>
+                                                    <tr style={{
+                                                        backgroundColor: '#f8f9fa',
+                                                        borderBottom: '2px solid #dee2e6'
+                                                    }}>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Bill ID</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Order ID</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Total Amount</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Status</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Created At</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {showBillsModal.unpaidBills.map((bill) => (
+                                                        <tr
+                                                            key={bill.id}
+                                                            style={{
+                                                                borderBottom: '1px solid #e9ecef'
+                                                            }}
+                                                        >
+                                                            <td style={{ padding: '12px 16px', color: '#333', fontSize: '14px', fontWeight: '500' }}>{bill.id}</td>
+                                                            <td style={{ padding: '12px 16px', color: '#666', fontSize: '14px' }}>{bill.order_id || bill.orderId || '-'}</td>
+                                                            <td style={{ padding: '12px 16px', color: '#333', fontSize: '14px' }}>
+                                                                {bill.total_amount ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(bill.total_amount) : '-'}
+                                                            </td>
+                                                            <td style={{ padding: '12px 16px' }}>
+                                                                <span style={{
+                                                                    padding: '4px 12px',
+                                                                    borderRadius: '12px',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: '500',
+                                                                    backgroundColor: '#fef3c7',
+                                                                    color: '#92400e'
+                                                                }}>
+                                                                    {bill.status || 'pending'}
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '12px 16px', color: '#666', fontSize: '14px' }}>
+                                                                {bill.created_at ? new Date(bill.created_at).toLocaleString('vi-VN') : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Paid Bills Section */}
+                                {showPaidBills && showBillsModal.paidBills.length > 0 && (
+                                    <div>
+                                        <h3 style={{ 
+                                            margin: '0 0 12px 0', 
+                                            fontSize: '18px', 
+                                            fontWeight: '600', 
+                                            color: '#065f46',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
+                                        }}>
+                                            <span style={{ 
+                                                padding: '4px 8px', 
+                                                borderRadius: '4px', 
+                                                backgroundColor: '#d1fae5', 
+                                                color: '#065f46',
+                                                fontSize: '12px',
+                                                fontWeight: '600'
+                                            }}>
+                                                {showBillsModal.paidBills.length}
+                                            </span>
+                                            Bills Đã Thanh Toán
+                                        </h3>
+                                        <div style={{
+                                            overflowX: 'auto',
+                                            borderRadius: '8px',
+                                            border: '1px solid #e0e0e0'
+                                        }}>
+                                            <table style={{
+                                                width: '100%',
+                                                borderCollapse: 'collapse',
+                                                backgroundColor: 'white'
+                                            }}>
+                                                <thead>
+                                                    <tr style={{
+                                                        backgroundColor: '#f8f9fa',
+                                                        borderBottom: '2px solid #dee2e6'
+                                                    }}>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Bill ID</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Order ID</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Total Amount</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Status</th>
+                                                        <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '14px' }}>Created At</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {showBillsModal.paidBills.map((bill) => (
+                                                        <tr
+                                                            key={bill.id}
+                                                            style={{
+                                                                borderBottom: '1px solid #e9ecef'
+                                                            }}
+                                                        >
+                                                            <td style={{ padding: '12px 16px', color: '#333', fontSize: '14px', fontWeight: '500' }}>{bill.id}</td>
+                                                            <td style={{ padding: '12px 16px', color: '#666', fontSize: '14px' }}>{bill.order_id || bill.orderId || '-'}</td>
+                                                            <td style={{ padding: '12px 16px', color: '#333', fontSize: '14px' }}>
+                                                                {bill.total_amount ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(bill.total_amount) : '-'}
+                                                            </td>
+                                                            <td style={{ padding: '12px 16px' }}>
+                                                                <span style={{
+                                                                    padding: '4px 12px',
+                                                                    borderRadius: '12px',
+                                                                    fontSize: '12px',
+                                                                    fontWeight: '500',
+                                                                    backgroundColor: '#d1fae5',
+                                                                    color: '#065f46'
+                                                                }}>
+                                                                    paid
+                                                                </span>
+                                                            </td>
+                                                            <td style={{ padding: '12px 16px', color: '#666', fontSize: '14px' }}>
+                                                                {bill.created_at ? new Date(bill.created_at).toLocaleString('vi-VN') : '-'}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );

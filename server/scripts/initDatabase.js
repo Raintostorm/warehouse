@@ -105,89 +105,119 @@ const TABLES = {
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         )
     `,
-    product_details: `
-        CREATE TABLE IF NOT EXISTS product_details (
-            pid VARCHAR(10),
-            wid VARCHAR(10),
-            updated_at DATE,
-            number INTEGER DEFAULT 0,
-            note TEXT,
-            PRIMARY KEY (pid, wid),
-            FOREIGN KEY (pid) REFERENCES products(id) ON DELETE CASCADE,
-            FOREIGN KEY (wid) REFERENCES warehouses(id) ON DELETE CASCADE
+    bills: `
+        CREATE TABLE IF NOT EXISTS bills (
+            id VARCHAR(20) PRIMARY KEY,
+            order_id VARCHAR(15) NOT NULL,
+            total_amount NUMERIC(14,2) NOT NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            actor TEXT,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
         )
+    `,
+    payments: `
+        CREATE TABLE IF NOT EXISTS payments (
+            id VARCHAR(20) PRIMARY KEY,
+            bill_id VARCHAR(20),
+            order_id VARCHAR(15) NOT NULL,
+            amount NUMERIC(14,2) NOT NULL,
+            payment_method VARCHAR(50) NOT NULL,
+            payment_status VARCHAR(20) DEFAULT 'pending',
+            transaction_id VARCHAR(100),
+            payment_date TIMESTAMP,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP,
+            actor TEXT,
+            FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE SET NULL,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+        )
+    `,
+    product_details: `
+        CREATE TABLE IF NOT EXISTS product_details(
+        pid VARCHAR(10),
+        wid VARCHAR(10),
+        updated_at DATE,
+        number INTEGER DEFAULT 0,
+        note TEXT,
+        PRIMARY KEY(pid, wid),
+        FOREIGN KEY(pid) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY(wid) REFERENCES warehouses(id) ON DELETE CASCADE
+    )
     `,
     warehouse_management: `
-        CREATE TABLE IF NOT EXISTS warehouse_management (
-            wid VARCHAR(10),
-            uid VARCHAR(10),
-            action TEXT,
-            date DATE,
-            note TEXT,
-            PRIMARY KEY (wid, uid),
-            FOREIGN KEY (wid) REFERENCES warehouses(id) ON DELETE CASCADE,
-            FOREIGN KEY (uid) REFERENCES users(id) ON DELETE CASCADE
-        )
+        CREATE TABLE IF NOT EXISTS warehouse_management(
+        wid VARCHAR(10),
+        uid VARCHAR(10),
+        action TEXT,
+        date DATE,
+        note TEXT,
+        PRIMARY KEY(wid, uid),
+        FOREIGN KEY(wid) REFERENCES warehouses(id) ON DELETE CASCADE,
+        FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE
+    )
     `,
     product_management: `
-        CREATE TABLE IF NOT EXISTS product_management (
-            pid VARCHAR(10),
-            uid VARCHAR(10),
-            action TEXT,
-            number INTEGER DEFAULT 0,
-            date DATE,
-            note TEXT,
-            PRIMARY KEY (pid, uid),
-            FOREIGN KEY (pid) REFERENCES products(id) ON DELETE CASCADE,
-            FOREIGN KEY (uid) REFERENCES users(id) ON DELETE CASCADE
-        )
+        CREATE TABLE IF NOT EXISTS product_management(
+        pid VARCHAR(10),
+        uid VARCHAR(10),
+        action TEXT,
+        number INTEGER DEFAULT 0,
+        date DATE,
+        note TEXT,
+        PRIMARY KEY(pid, uid),
+        FOREIGN KEY(pid) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY(uid) REFERENCES users(id) ON DELETE CASCADE
+    )
     `,
     order_warehouses: `
-        CREATE TABLE IF NOT EXISTS order_warehouses (
-            wid VARCHAR(10),
-            oid VARCHAR(15),
-            note TEXT,
-            PRIMARY KEY (wid, oid),
-            FOREIGN KEY (wid) REFERENCES warehouses(id) ON DELETE CASCADE,
-            FOREIGN KEY (oid) REFERENCES orders(id) ON DELETE CASCADE
-        )
+        CREATE TABLE IF NOT EXISTS order_warehouses(
+        wid VARCHAR(10),
+        oid VARCHAR(15),
+        note TEXT,
+        PRIMARY KEY(wid, oid),
+        FOREIGN KEY(wid) REFERENCES warehouses(id) ON DELETE CASCADE,
+        FOREIGN KEY(oid) REFERENCES orders(id) ON DELETE CASCADE
+    )
     `,
     audit_logs: `
-        CREATE TABLE IF NOT EXISTS audit_logs (
-            id SERIAL PRIMARY KEY,
-            table_name VARCHAR(100),
-            record_id VARCHAR(100),
-            action VARCHAR(20),
-            actor TEXT,
-            old_data JSONB,
-            new_data JSONB,
-            ip_address VARCHAR(45),
-            user_agent TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+        CREATE TABLE IF NOT EXISTS audit_logs(
+        id SERIAL PRIMARY KEY,
+        table_name VARCHAR(100),
+        record_id VARCHAR(100),
+        action VARCHAR(20),
+        actor TEXT,
+        old_data JSONB,
+        new_data JSONB,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
     `,
     notifications: `
-        CREATE TABLE IF NOT EXISTS notifications (
-            id SERIAL PRIMARY KEY,
-            user_id VARCHAR(10),
-            title TEXT,
-            message TEXT,
-            type VARCHAR(50),
-            is_read BOOLEAN DEFAULT FALSE,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            read_at TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
+        CREATE TABLE IF NOT EXISTS notifications(
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(10),
+        title TEXT,
+        message TEXT,
+        type VARCHAR(50),
+        is_read BOOLEAN DEFAULT FALSE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        read_at TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
     `,
     password_resets: `
-        CREATE TABLE IF NOT EXISTS password_resets (
-            id SERIAL PRIMARY KEY,
-            user_id VARCHAR(10),
-            token TEXT UNIQUE,
-            expires_at TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-        )
+        CREATE TABLE IF NOT EXISTS password_resets(
+        id SERIAL PRIMARY KEY,
+        user_id VARCHAR(10),
+        token TEXT UNIQUE,
+        expires_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
     `
 };
 
@@ -203,6 +233,7 @@ async function createTables() {
         'warehouses',
         'orders',
         'order_details',
+        'payments',
         'product_details',
         'warehouse_management',
         'product_management',
@@ -215,9 +246,9 @@ async function createTables() {
     for (const tableName of tableOrder) {
         try {
             await db.query(TABLES[tableName]);
-            console.log(`Da tao/kiem tra table: ${tableName}`);
+            console.log(`Da tao / kiem tra table: ${tableName} `);
         } catch (error) {
-            console.error(`Loi khi tao table ${tableName}:`, error.message);
+            console.error(`Loi khi tao table ${tableName}: `, error.message);
         }
     }
 }
@@ -227,6 +258,10 @@ async function checkHasData() {
         // Check if users table has data
         const userCount = await db.query('SELECT COUNT(*) as count FROM users');
         const hasUsers = parseInt(userCount.rows[0].count) > 0;
+
+        // Check if roles table has data
+        const roleCount = await db.query('SELECT COUNT(*) as count FROM roles');
+        const hasRoles = parseInt(roleCount.rows[0].count) > 0;
 
         // Check if products table has data
         const productCount = await db.query('SELECT COUNT(*) as count FROM products');
@@ -238,6 +273,7 @@ async function checkHasData() {
 
         return {
             hasUsers,
+            hasRoles,
             hasProducts,
             hasOrders,
             hasAnyData: hasUsers || hasProducts || hasOrders
@@ -246,6 +282,7 @@ async function checkHasData() {
         // If error, assume no data
         return {
             hasUsers: false,
+            hasRoles: false,
             hasProducts: false,
             hasOrders: false,
             hasAnyData: false
@@ -259,11 +296,21 @@ async function seedData() {
     // Check if database already has data
     const dataCheck = await checkHasData();
 
-    if (dataCheck.hasAnyData) {
+    // Always seed roles if missing (critical for authentication)
+    const shouldSeedRoles = !dataCheck.hasRoles;
+
+    // Only skip other data if we have users, products, AND orders
+    const shouldSkipOtherData = dataCheck.hasUsers && dataCheck.hasProducts && dataCheck.hasOrders;
+
+    if (shouldSkipOtherData && !shouldSeedRoles) {
         console.log('ℹ️  Database đã có data:');
         if (dataCheck.hasUsers) {
             const userCount = await db.query('SELECT COUNT(*) as count FROM users');
             console.log(`   - Users: ${userCount.rows[0].count} records`);
+        }
+        if (dataCheck.hasRoles) {
+            const roleCount = await db.query('SELECT COUNT(*) as count FROM roles');
+            console.log(`   - Roles: ${roleCount.rows[0].count} records`);
         }
         if (dataCheck.hasProducts) {
             const productCount = await db.query('SELECT COUNT(*) as count FROM products');
@@ -273,14 +320,20 @@ async function seedData() {
             const orderCount = await db.query('SELECT COUNT(*) as count FROM orders');
             console.log(`   - Orders: ${orderCount.rows[0].count} records`);
         }
-        console.log('\nGiu nguyen data hien co. Bo qua seed data.\n');
+        console.log('\nGiữ nguyên data hiện có. Bỏ qua seed data.\n');
         return;
     }
 
-    console.log('📝 Database trống, bắt đầu seed data mẫu...\n');
+    if (shouldSeedRoles) {
+        console.log('⚠️  Roles table trống hoặc thiếu data. Sẽ seed roles...\n');
+    }
+
+    if (!shouldSkipOtherData) {
+        console.log('📝 Database trống hoặc thiếu data, bắt đầu seed data mẫu...\n');
+    }
 
     try {
-        // 1. Seed Roles
+        // 1. Seed Roles (ALWAYS seed if missing - critical for authentication)
         const roles = [
             { id: 'R001', name: 'Admin' },
             { id: 'R002', name: 'Manager' },
@@ -293,12 +346,18 @@ async function seedData() {
                     'INSERT INTO roles (id, name) VALUES ($1, $2) ON CONFLICT (id) DO NOTHING',
                     [role.id, role.name]
                 );
-                console.log(`Da seed role: ${role.name}`);
+                console.log(`✅ Đã seed role: ${role.name} `);
             } catch (error) {
-                if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed role ${role.name}:`, error.message);
+                if (!error.message.includes('duplicate') && !error.message.includes('already exists')) {
+                    console.error(`❌ Lỗi seed role ${role.name}: `, error.message);
                 }
             }
+        }
+
+        // Only seed users and other data if database is empty
+        if (shouldSkipOtherData && !shouldSeedRoles) {
+            console.log('\n✅ Roles đã có. Bỏ qua seed users và data khác.\n');
+            return;
         }
 
         // 2. Seed Users
@@ -353,12 +412,12 @@ async function seedData() {
         for (const user of users) {
             try {
                 await db.query(
-                    `INSERT INTO users (id, fullname, email, password, number, address, actor) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) 
-                     ON CONFLICT (id) DO NOTHING`,
+                    `INSERT INTO users(id, fullname, email, password, number, address, actor)
+VALUES($1, $2, $3, $4, $5, $6, $7) 
+                     ON CONFLICT(id) DO NOTHING`,
                     [user.id, user.fullname, user.email, user.password, user.number, user.address, user.actor]
                 );
-                console.log(`Da seed user: ${user.email}`);
+                console.log(`Da seed user: ${user.email} `);
 
                 // Assign roles
                 if (user.id === 'U001') {
@@ -379,7 +438,7 @@ async function seedData() {
                 }
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed user:`, error.message);
+                    console.error(`❌ Lỗi seed user: `, error.message);
                 }
             }
         }
@@ -399,10 +458,10 @@ async function seedData() {
                     'INSERT INTO suppliers (id, name, address, phone) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
                     [supplier.id, supplier.name, supplier.address, supplier.phone]
                 );
-                console.log(`Da seed supplier: ${supplier.name}`);
+                console.log(`Da seed supplier: ${supplier.name} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed supplier:`, error.message);
+                    console.error(`❌ Lỗi seed supplier: `, error.message);
                 }
             }
         }
@@ -434,14 +493,14 @@ async function seedData() {
         for (const product of products) {
             try {
                 await db.query(
-                    `INSERT INTO products (id, name, type, unit, number, price, supplier_id) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
+                    `INSERT INTO products(id, name, type, unit, number, price, supplier_id)
+VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
                     [product.id, product.name, product.type, product.unit, product.number, product.price, product.supplier_id]
                 );
-                console.log(`Da seed product: ${product.name}`);
+                console.log(`Da seed product: ${product.name} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed product:`, error.message);
+                    console.error(`❌ Lỗi seed product: `, error.message);
                 }
             }
         }
@@ -507,14 +566,14 @@ async function seedData() {
         for (const warehouse of warehouses) {
             try {
                 await db.query(
-                    `INSERT INTO warehouses (id, name, address, size, type, image, started_date) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
+                    `INSERT INTO warehouses(id, name, address, size, type, image, started_date)
+VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
                     [warehouse.id, warehouse.name, warehouse.address, warehouse.size, warehouse.type, warehouse.image, warehouse.started_date]
                 );
                 console.log(`Da seed warehouse: ${warehouse.name} (${warehouse.type})`);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed warehouse:`, error.message);
+                    console.error(`❌ Lỗi seed warehouse: `, error.message);
                 }
             }
         }
@@ -607,14 +666,14 @@ async function seedData() {
         for (const order of orders) {
             try {
                 await db.query(
-                    `INSERT INTO orders (id, type, date, user_id, customer_name, total) 
-                     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO NOTHING`,
+                    `INSERT INTO orders(id, type, date, user_id, customer_name, total)
+VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT(id) DO NOTHING`,
                     [order.id, order.type, order.date, order.user_id, order.customer_name, order.total]
                 );
-                console.log(`Da seed order: ${order.id}`);
+                console.log(`Da seed order: ${order.id} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`Loi seed order:`, error.message);
+                    console.error(`Loi seed order: `, error.message);
                 }
             }
         }
@@ -652,14 +711,14 @@ async function seedData() {
         for (const od of orderDetails) {
             try {
                 await db.query(
-                    `INSERT INTO order_details (order_id, product_id, number, note) 
-                     VALUES ($1, $2, $3, $4) ON CONFLICT (order_id, product_id) DO NOTHING`,
+                    `INSERT INTO order_details(order_id, product_id, number, note)
+VALUES($1, $2, $3, $4) ON CONFLICT(order_id, product_id) DO NOTHING`,
                     [od.order_id, od.product_id, od.number, od.note]
                 );
-                console.log(`✅ Đã seed order detail: ${od.order_id} - ${od.product_id}`);
+                console.log(`✅ Đã seed order detail: ${od.order_id} - ${od.product_id} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`Loi seed order detail:`, error.message);
+                    console.error(`Loi seed order detail: `, error.message);
                 }
             }
         }
@@ -691,14 +750,14 @@ async function seedData() {
         for (const pd of productDetails) {
             try {
                 await db.query(
-                    `INSERT INTO product_details (pid, wid, number, note, updated_at) 
-                     VALUES ($1, $2, $3, $4, CURRENT_DATE) ON CONFLICT (pid, wid) DO NOTHING`,
+                    `INSERT INTO product_details(pid, wid, number, note, updated_at)
+VALUES($1, $2, $3, $4, CURRENT_DATE) ON CONFLICT(pid, wid) DO NOTHING`,
                     [pd.pid, pd.wid, pd.number, pd.note]
                 );
-                console.log(`✅ Đã seed product detail: ${pd.pid} - ${pd.wid}`);
+                console.log(`✅ Đã seed product detail: ${pd.pid} - ${pd.wid} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`Loi seed product detail:`, error.message);
+                    console.error(`Loi seed product detail: `, error.message);
                 }
             }
         }
@@ -716,14 +775,14 @@ async function seedData() {
         for (const wm of warehouseManagement) {
             try {
                 await db.query(
-                    `INSERT INTO warehouse_management (wid, uid, action, date, note) 
-                     VALUES ($1, $2, $3, $4, $5) ON CONFLICT (wid, uid) DO NOTHING`,
+                    `INSERT INTO warehouse_management(wid, uid, action, date, note)
+VALUES($1, $2, $3, $4, $5) ON CONFLICT(wid, uid) DO NOTHING`,
                     [wm.wid, wm.uid, wm.action, wm.date, wm.note]
                 );
-                console.log(`Da seed warehouse management: ${wm.wid} - ${wm.uid}`);
+                console.log(`Da seed warehouse management: ${wm.wid} - ${wm.uid} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`❌ Lỗi seed warehouse management:`, error.message);
+                    console.error(`❌ Lỗi seed warehouse management: `, error.message);
                 }
             }
         }
@@ -741,14 +800,14 @@ async function seedData() {
         for (const pm of productManagement) {
             try {
                 await db.query(
-                    `INSERT INTO product_management (pid, uid, action, number, date, note) 
-                     VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (pid, uid) DO NOTHING`,
+                    `INSERT INTO product_management(pid, uid, action, number, date, note)
+VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT(pid, uid) DO NOTHING`,
                     [pm.pid, pm.uid, pm.action, pm.number, pm.date, pm.note]
                 );
-                console.log(`Da seed product management: ${pm.pid} - ${pm.uid}`);
+                console.log(`Da seed product management: ${pm.pid} - ${pm.uid} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`Loi seed product management:`, error.message);
+                    console.error(`Loi seed product management: `, error.message);
                 }
             }
         }
@@ -769,14 +828,14 @@ async function seedData() {
         for (const ow of orderWarehouses) {
             try {
                 await db.query(
-                    `INSERT INTO order_warehouses (wid, oid, note) 
-                     VALUES ($1, $2, $3) ON CONFLICT (wid, oid) DO NOTHING`,
+                    `INSERT INTO order_warehouses(wid, oid, note)
+VALUES($1, $2, $3) ON CONFLICT(wid, oid) DO NOTHING`,
                     [ow.wid, ow.oid, ow.note]
                 );
-                console.log(`✅ Đã seed order warehouse: ${ow.wid} - ${ow.oid}`);
+                console.log(`✅ Đã seed order warehouse: ${ow.wid} - ${ow.oid} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
-                    console.error(`Loi seed order warehouse:`, error.message);
+                    console.error(`Loi seed order warehouse: `, error.message);
                 }
             }
         }
@@ -809,15 +868,15 @@ async function dropAllTables() {
             SELECT tablename 
             FROM pg_tables 
             WHERE schemaname = 'public'
-        `);
+    `);
 
         // Drop all tables with CASCADE
         for (const table of tables.rows) {
             try {
                 await db.query(`DROP TABLE IF EXISTS ${table.tablename} CASCADE`);
-                console.log(`Da xoa table: ${table.tablename}`);
+                console.log(`Da xoa table: ${table.tablename} `);
             } catch (error) {
-                console.error(`Loi khi xoa table ${table.tablename}:`, error.message);
+                console.error(`Loi khi xoa table ${table.tablename}: `, error.message);
             }
         }
         console.log('\nDa xoa tat ca tables\n');

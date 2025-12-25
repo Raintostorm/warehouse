@@ -1,15 +1,49 @@
 import { useState, useEffect } from 'react';
 import { statisticsAPI } from '../services/api';
 import { Icons } from '../src/utils/icons';
+import { useTheme } from '../src/contexts/ThemeContext';
 import {
     LineChart, Line, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 
 const Dashboard = () => {
+    const { isDark } = useTheme();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
+    const [isTablet, setIsTablet] = useState(false);
+
+    // Detect screen size for responsive layout
+    useEffect(() => {
+        const checkScreenSize = () => {
+            const width = window.innerWidth;
+            setIsMobile(width < 768);
+            setIsTablet(width >= 768 && width < 1024);
+        };
+
+        checkScreenSize();
+        window.addEventListener('resize', checkScreenSize);
+        return () => window.removeEventListener('resize', checkScreenSize);
+    }, []);
+
+    // Theme-aware colors
+    const bgGradient = isDark
+        ? 'linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.9) 100%)'
+        : 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)';
+    const cardBg = isDark ? 'rgba(30, 41, 59, 0.95)' : 'rgba(255, 255, 255, 0.95)';
+    const textPrimary = isDark ? '#f1f5f9' : '#1f2937';
+    const textSecondary = isDark ? '#cbd5e1' : '#6b7280';
+    const textTertiary = isDark ? '#94a3b8' : '#64748b';
+    const borderColor = isDark ? '#334155' : '#e5e7eb';
+    const cardBorderColor = isDark ? '#475569' : '#e2e8f0';
+    const statCardBg = isDark
+        ? 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)'
+        : 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
+    const chartBg = isDark ? '#1e293b' : 'white';
+    const gridColor = isDark ? '#334155' : '#e2e8f0';
+    const axisColor = isDark ? '#94a3b8' : '#64748b';
 
     useEffect(() => {
         fetchStats();
@@ -50,21 +84,22 @@ const Dashboard = () => {
                 justifyContent: 'center',
                 alignItems: 'center',
                 padding: '60px 20px',
-                backgroundColor: '#f8f9fa',
+                backgroundColor: cardBg,
                 borderRadius: '12px',
-                margin: '20px 0'
+                margin: '20px 0',
+                border: `1px solid ${borderColor}`
             }}>
                 <div style={{ textAlign: 'center' }}>
                     <div style={{
                         width: '50px',
                         height: '50px',
-                        border: '4px solid #f3f3f3',
+                        border: `4px solid ${isDark ? '#334155' : '#f3f3f3'}`,
                         borderTop: '4px solid #475569',
                         borderRadius: '50%',
                         animation: 'spin 1s linear infinite',
                         margin: '0 auto 20px'
                     }}></div>
-                    <p style={{ color: '#666', fontSize: '16px', margin: 0 }}>Loading statistics...</p>
+                    <p style={{ color: textSecondary, fontSize: '16px', margin: 0 }}>Loading statistics...</p>
                 </div>
             </div>
         );
@@ -74,13 +109,13 @@ const Dashboard = () => {
         return (
             <div style={{
                 padding: '20px',
-                backgroundColor: '#fee',
-                border: '1px solid #64748b',
+                backgroundColor: isDark ? '#7f1d1d' : '#fee2e2',
+                border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
                 borderRadius: '8px',
                 margin: '20px 0',
                 textAlign: 'center'
             }}>
-                <p style={{ color: '#64748b', margin: 0 }}>{error}</p>
+                <p style={{ color: isDark ? '#fecaca' : '#991b1b', margin: 0 }}>{error}</p>
                 <button
                     onClick={fetchStats}
                     style={{
@@ -90,7 +125,16 @@ const Dashboard = () => {
                         color: 'white',
                         border: 'none',
                         borderRadius: '6px',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(71, 85, 105, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
                     }}
                 >
                     Retry
@@ -103,14 +147,17 @@ const Dashboard = () => {
 
     return (
         <div style={{
-            background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.9) 100%)',
+            background: bgGradient,
             backdropFilter: 'blur(10px)',
             borderRadius: '20px',
             padding: '32px',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            boxShadow: isDark
+                ? '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3)'
+                : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
             margin: '20px 0',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            animation: 'fadeIn 0.5s ease-out'
+            border: `1px solid ${borderColor}`,
+            animation: 'fadeIn 0.5s ease-out',
+            transition: 'background 0.3s ease, border-color 0.3s ease'
         }}>
             {/* Header */}
             <div style={{
@@ -119,20 +166,18 @@ const Dashboard = () => {
                 alignItems: 'center',
                 marginBottom: '32px',
                 paddingBottom: '20px',
-                borderBottom: '2px solid #e5e7eb'
+                borderBottom: `2px solid ${borderColor}`
             }}>
                 <div>
                     <h1 style={{
                         margin: 0,
-                        fontSize: '28px',
+                        fontSize: isMobile ? '24px' : '28px',
                         fontWeight: '700',
-                        background: 'linear-gradient(135deg, #475569 0%, #334155 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
+                        color: textPrimary,
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '12px'
+                        gap: '12px',
+                        flexWrap: 'wrap'
                     }}>
                         <div style={{
                             width: '44px',
@@ -148,12 +193,14 @@ const Dashboard = () => {
                         </div>
                         Dashboard
                     </h1>
-                    <p style={{ margin: '8px 0 0 0', color: '#666', fontSize: '14px' }}>
+                    <p style={{ margin: '8px 0 0 0', color: textSecondary, fontSize: '14px', transition: 'color 0.3s ease' }}>
                         Tổng quan hệ thống và thống kê
                     </p>
                 </div>
                 <button
                     onClick={fetchStats}
+                    aria-label="Refresh dashboard statistics"
+                    tabIndex={0}
                     style={{
                         padding: '10px 20px',
                         background: 'linear-gradient(135deg, #475569 0%, #334155 100%)',
@@ -176,6 +223,12 @@ const Dashboard = () => {
                         e.currentTarget.style.transform = 'translateY(0)';
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(71, 85, 105, 0.3)';
                     }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            fetchStats();
+                        }
+                    }}
                 >
                     <Icons.Refresh size={18} /> Refresh
                 </button>
@@ -184,17 +237,24 @@ const Dashboard = () => {
             {/* Stats Cards */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gridTemplateColumns: isMobile
+                    ? '1fr'
+                    : isTablet
+                        ? 'repeat(2, 1fr)'
+                        : 'repeat(4, 1fr)',
                 gap: '20px',
                 marginBottom: '32px'
             }}>
                 {/* Users Card */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    background: statCardBg,
                     borderRadius: '16px',
                     padding: '24px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    border: `1px solid ${cardBorderColor}`,
+                    boxShadow: isDark
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'background 0.3s ease, border-color 0.3s ease'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                         <div style={{
@@ -209,8 +269,8 @@ const Dashboard = () => {
                             <Icons.Users size={20} color="white" />
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Users</p>
-                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: '#1e293b' }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: textTertiary, fontWeight: '500' }}>Users</p>
+                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: textPrimary }}>
                                 {stats.counts?.users || 0}
                             </h2>
                         </div>
@@ -219,11 +279,14 @@ const Dashboard = () => {
 
                 {/* Products Card */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    background: statCardBg,
                     borderRadius: '16px',
                     padding: '24px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    border: `1px solid ${cardBorderColor}`,
+                    boxShadow: isDark
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'background 0.3s ease, border-color 0.3s ease'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                         <div style={{
@@ -238,8 +301,8 @@ const Dashboard = () => {
                             <Icons.Product size={20} color="white" />
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Products</p>
-                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: '#1e293b' }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: textTertiary, fontWeight: '500' }}>Products</p>
+                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: textPrimary }}>
                                 {stats.counts?.products || 0}
                             </h2>
                         </div>
@@ -248,11 +311,14 @@ const Dashboard = () => {
 
                 {/* Orders Card */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    background: statCardBg,
                     borderRadius: '16px',
                     padding: '24px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    border: `1px solid ${cardBorderColor}`,
+                    boxShadow: isDark
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'background 0.3s ease, border-color 0.3s ease'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                         <div style={{
@@ -267,8 +333,8 @@ const Dashboard = () => {
                             <Icons.Order size={20} color="white" />
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Đơn hàng</p>
-                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: '#1e293b' }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: textTertiary, fontWeight: '500' }}>Đơn hàng</p>
+                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: textPrimary }}>
                                 {stats.counts?.orders || 0}
                             </h2>
                         </div>
@@ -277,11 +343,14 @@ const Dashboard = () => {
 
                 {/* Warehouses Card */}
                 <div style={{
-                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    background: statCardBg,
                     borderRadius: '16px',
                     padding: '24px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    border: `1px solid ${cardBorderColor}`,
+                    boxShadow: isDark
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'background 0.3s ease, border-color 0.3s ease'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                         <div style={{
@@ -296,8 +365,8 @@ const Dashboard = () => {
                             <Icons.Warehouse size={20} color="white" />
                         </div>
                         <div>
-                            <p style={{ margin: 0, fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Warehouses</p>
-                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: '#1e293b' }}>
+                            <p style={{ margin: 0, fontSize: '13px', color: textTertiary, fontWeight: '500' }}>Warehouses</p>
+                            <h2 style={{ margin: 0, fontSize: '28px', fontWeight: '700', color: textPrimary }}>
                                 {stats.counts?.warehouses || 0}
                             </h2>
                         </div>
@@ -353,7 +422,7 @@ const Dashboard = () => {
             {/* Two Column Layout */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(400px, 1fr))',
                 gap: '24px'
             }}>
                 {/* Low Stock Products */}
@@ -386,8 +455,8 @@ const Dashboard = () => {
                                 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div>
-                                            <p style={{ margin: 0, fontWeight: '600', color: '#1e293b' }}>{product.name}</p>
-                                            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>ID: {product.id}</p>
+                                            <p style={{ margin: 0, fontWeight: '600', color: textPrimary }}>{product.name}</p>
+                                            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: textTertiary }}>ID: {product.id}</p>
                                         </div>
                                         <div style={{ textAlign: 'right' }}>
                                             <p style={{ margin: 0, fontSize: '20px', fontWeight: '700', color: '#dc2626' }}>
@@ -399,7 +468,7 @@ const Dashboard = () => {
                             ))}
                         </div>
                     ) : (
-                        <p style={{ margin: 0, color: '#64748b' }}>No low stock products</p>
+                        <p style={{ margin: 0, color: textTertiary }}>No low stock products</p>
                     )}
                 </div>
 
@@ -450,8 +519,8 @@ const Dashboard = () => {
                                             {index + 1}
                                         </div>
                                         <div>
-                                            <p style={{ margin: 0, fontWeight: '600', color: '#1e293b' }}>{product.name}</p>
-                                            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#64748b' }}>{product.type}</p>
+                                            <p style={{ margin: 0, fontWeight: '600', color: textPrimary }}>{product.name}</p>
+                                            <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: textTertiary }}>{product.type}</p>
                                         </div>
                                     </div>
                                     <div style={{
@@ -468,7 +537,7 @@ const Dashboard = () => {
                             ))}
                         </div>
                     ) : (
-                        <p style={{ margin: 0, color: '#64748b' }}>No sales data available</p>
+                        <p style={{ margin: 0, color: textTertiary }}>No sales data available</p>
                     )}
                 </div>
             </div>
@@ -476,24 +545,27 @@ const Dashboard = () => {
             {/* Charts Section */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(500px, 1fr))',
                 gap: '24px',
                 marginTop: '32px',
                 marginBottom: '32px'
             }}>
                 {/* Revenue Chart - Line Chart */}
                 <div style={{
-                    background: 'white',
+                    background: chartBg,
                     borderRadius: '16px',
                     padding: '24px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    border: `1px solid ${cardBorderColor}`,
+                    boxShadow: isDark
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'background 0.3s ease, border-color 0.3s ease'
                 }}>
                     <h3 style={{
                         margin: '0 0 20px 0',
                         fontSize: '18px',
                         fontWeight: '600',
-                        color: '#1e293b',
+                        color: textPrimary,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px'
@@ -509,28 +581,33 @@ const Dashboard = () => {
                             }))}>
                                 <defs>
                                     <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#475569" stopOpacity={0.8}/>
-                                        <stop offset="95%" stopColor="#475569" stopOpacity={0}/>
+                                        <stop offset="5%" stopColor="#475569" stopOpacity={0.8} />
+                                        <stop offset="95%" stopColor="#475569" stopOpacity={0} />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="day" stroke="#64748b" fontSize={12} />
-                                <YAxis stroke="#64748b" fontSize={12} />
-                                <Tooltip 
+                                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                                <XAxis dataKey="day" stroke={axisColor} fontSize={12} />
+                                <YAxis stroke={axisColor} fontSize={12} />
+                                <Tooltip
                                     formatter={(value) => formatCurrency(value)}
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    contentStyle={{
+                                        borderRadius: '8px',
+                                        border: `1px solid ${cardBorderColor}`,
+                                        backgroundColor: chartBg,
+                                        color: textPrimary
+                                    }}
                                 />
-                                <Area 
-                                    type="monotone" 
-                                    dataKey="revenue" 
-                                    stroke="#475569" 
-                                    fillOpacity={1} 
-                                    fill="url(#colorRevenue)" 
+                                <Area
+                                    type="monotone"
+                                    dataKey="revenue"
+                                    stroke="#475569"
+                                    fillOpacity={1}
+                                    fill="url(#colorRevenue)"
                                 />
                             </AreaChart>
                         </ResponsiveContainer>
                     ) : (
-                        <p style={{ margin: 0, color: '#64748b', textAlign: 'center', padding: '40px' }}>
+                        <p style={{ margin: 0, color: textTertiary, textAlign: 'center', padding: '40px' }}>
                             Chưa có dữ liệu doanh thu
                         </p>
                     )}
@@ -538,17 +615,20 @@ const Dashboard = () => {
 
                 {/* Orders by Type - Pie Chart */}
                 <div style={{
-                    background: 'white',
+                    background: chartBg,
                     borderRadius: '16px',
                     padding: '24px',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    border: `1px solid ${cardBorderColor}`,
+                    boxShadow: isDark
+                        ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                        : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                    transition: 'background 0.3s ease, border-color 0.3s ease'
                 }}>
                     <h3 style={{
                         margin: '0 0 20px 0',
                         fontSize: '18px',
                         fontWeight: '600',
-                        color: '#1e293b',
+                        color: textPrimary,
                         display: 'flex',
                         alignItems: 'center',
                         gap: '8px'
@@ -574,11 +654,18 @@ const Dashboard = () => {
                                         return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
                                     })}
                                 </Pie>
-                                <Tooltip />
+                                <Tooltip
+                                    contentStyle={{
+                                        borderRadius: '8px',
+                                        border: `1px solid ${cardBorderColor}`,
+                                        backgroundColor: chartBg,
+                                        color: textPrimary
+                                    }}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     ) : (
-                        <p style={{ margin: 0, color: '#64748b', textAlign: 'center', padding: '40px' }}>
+                        <p style={{ margin: 0, color: textTertiary, textAlign: 'center', padding: '40px' }}>
                             No order data available
                         </p>
                     )}
@@ -588,24 +675,27 @@ const Dashboard = () => {
             {/* More Charts */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))',
+                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(500px, 1fr))',
                 gap: '24px',
                 marginBottom: '32px'
             }}>
                 {/* Revenue by Month - Line Chart */}
                 {stats.revenue?.byMonth && stats.revenue.byMonth.length > 0 && (
                     <div style={{
-                        background: 'white',
+                        background: chartBg,
                         borderRadius: '16px',
                         padding: '24px',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        border: `1px solid ${cardBorderColor}`,
+                        boxShadow: isDark
+                            ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                            : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        transition: 'background 0.3s ease, border-color 0.3s ease'
                     }}>
                         <h3 style={{
                             margin: '0 0 20px 0',
                             fontSize: '18px',
                             fontWeight: '600',
-                            color: '#1e293b',
+                            color: textPrimary,
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px'
@@ -618,17 +708,22 @@ const Dashboard = () => {
                                 ...item,
                                 month: item.month.split('-')[1] + '/' + item.month.split('-')[0]
                             }))}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis dataKey="month" stroke="#64748b" fontSize={12} />
-                                <YAxis stroke="#64748b" fontSize={12} />
-                                <Tooltip 
+                                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                                <XAxis dataKey="month" stroke={axisColor} fontSize={12} />
+                                <YAxis stroke={axisColor} fontSize={12} />
+                                <Tooltip
                                     formatter={(value) => formatCurrency(value)}
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    contentStyle={{
+                                        borderRadius: '8px',
+                                        border: `1px solid ${cardBorderColor}`,
+                                        backgroundColor: chartBg,
+                                        color: textPrimary
+                                    }}
                                 />
-                                <Line 
-                                    type="monotone" 
-                                    dataKey="revenue" 
-                                    stroke="#475569" 
+                                <Line
+                                    type="monotone"
+                                    dataKey="revenue"
+                                    stroke="#475569"
                                     strokeWidth={3}
                                     dot={{ fill: '#475569', r: 4 }}
                                     activeDot={{ r: 6 }}
@@ -641,17 +736,20 @@ const Dashboard = () => {
                 {/* Top Products - Bar Chart */}
                 {stats.topProducts && stats.topProducts.length > 0 && (
                     <div style={{
-                        background: 'white',
+                        background: chartBg,
                         borderRadius: '16px',
                         padding: '24px',
-                        border: '1px solid #e2e8f0',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                        border: `1px solid ${cardBorderColor}`,
+                        boxShadow: isDark
+                            ? '0 4px 6px -1px rgba(0, 0, 0, 0.3)'
+                            : '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        transition: 'background 0.3s ease, border-color 0.3s ease'
                     }}>
                         <h3 style={{
                             margin: '0 0 20px 0',
                             fontSize: '18px',
                             fontWeight: '600',
-                            color: '#1e293b',
+                            color: textPrimary,
                             display: 'flex',
                             alignItems: 'center',
                             gap: '8px'
@@ -664,12 +762,17 @@ const Dashboard = () => {
                                 name: item.name.length > 15 ? item.name.substring(0, 15) + '...' : item.name,
                                 sold: item.totalSold
                             }))} layout="vertical">
-                                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                                <XAxis type="number" stroke="#64748b" fontSize={12} />
-                                <YAxis dataKey="name" type="category" stroke="#64748b" fontSize={12} width={120} />
-                                <Tooltip 
+                                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+                                <XAxis type="number" stroke={axisColor} fontSize={12} />
+                                <YAxis dataKey="name" type="category" stroke={axisColor} fontSize={12} width={120} />
+                                <Tooltip
                                     formatter={(value) => `${value} products`}
-                                    contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0' }}
+                                    contentStyle={{
+                                        borderRadius: '8px',
+                                        border: `1px solid ${cardBorderColor}`,
+                                        backgroundColor: chartBg,
+                                        color: textPrimary
+                                    }}
                                 />
                                 <Bar dataKey="sold" fill="#475569" radius={[0, 8, 8, 0]} />
                             </BarChart>

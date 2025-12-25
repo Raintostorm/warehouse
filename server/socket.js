@@ -4,7 +4,17 @@ const UsersM = require('./models/UsersM');
 const { sendVideoCallInvitationEmail } = require('./utils/emailService');
 
 // Use same JWT_SECRET as authS.js (with fallback)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+// IMPORTANT: Must match the default in authS.js
+let JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.trim() === '') {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET must be set in production environment');
+    } else {
+        // Use same default as authS.js
+        JWT_SECRET = 'dev-secret-key-change-in-production-do-not-use-in-production';
+    }
+}
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:5173';
 
 let io = null;

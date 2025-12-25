@@ -69,6 +69,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders', require('./routes/orders'));
+app.use('/api/bills', require('./routes/bills'));
+app.use('/api/payments', require('./routes/payments'));
 app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/warehouses', require('./routes/warehouses'));
 app.use('/api/roles', require('./routes/roles'));
@@ -85,6 +87,8 @@ app.use('/api/audit-logs', require('./routes/auditLogs'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin-notifications', require('./routes/adminNotifications'));
+app.use('/api/ai', require('./routes/ai'));
+app.use('/api/chatbot', require('./routes/chatbot'));
 
 // Initialize Socket.io
 const { initSocketIO } = require('./socket');

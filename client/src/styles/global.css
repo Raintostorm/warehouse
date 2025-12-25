@@ -25,7 +25,7 @@
     --gray-700: #374151;
     --gray-800: #1f2937;
     --gray-900: #111827;
-    
+
     /* Light theme (default) */
     --bg-primary: #ffffff;
     --bg-secondary: #f1f5f9;
@@ -93,8 +93,13 @@ html {
 
 /* Animations */
 @keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @keyframes fadeIn {
@@ -102,6 +107,7 @@ html {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -113,6 +119,7 @@ html {
         opacity: 0;
         transform: translateX(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -120,9 +127,12 @@ html {
 }
 
 @keyframes pulse {
-    0%, 100% {
+
+    0%,
+    100% {
         opacity: 1;
     }
+
     50% {
         opacity: 0.5;
     }
@@ -132,8 +142,19 @@ html {
     0% {
         background-position: -1000px 0;
     }
+
     100% {
         background-position: 1000px 0;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
     }
 }
 
@@ -173,4 +194,3 @@ html {
     background-color: var(--primary);
     color: white;
 }
-

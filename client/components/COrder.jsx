@@ -72,7 +72,7 @@ const ProductSelectDropdown = ({ value, products, onSelect, placeholder }) => {
     }, [isOpen]);
 
     const dropdownContent = isOpen && (
-        <div 
+        <div
             ref={dropdownRef}
             style={{
                 position: 'fixed',
@@ -89,133 +89,133 @@ const ProductSelectDropdown = ({ value, products, onSelect, placeholder }) => {
                 flexDirection: 'column'
             }}
         >
-                    {/* Search Input */}
-                    <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
-                        <div style={{ position: 'relative' }}>
-                            <Icons.Search 
-                                size={16} 
-                                style={{ 
-                                    position: 'absolute', 
-                                    left: '12px', 
-                                    top: '50%', 
-                                    transform: 'translateY(-50%)',
-                                    color: '#94a3b8'
-                                }} 
-                            />
-                            <input
-                                type="text"
-                                placeholder="Search products..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                    width: '100%',
-                                    padding: '8px 12px 8px 36px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '6px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                                autoFocus
-                            />
-                        </div>
-                    </div>
+            {/* Search Input */}
+            <div style={{ padding: '8px', borderBottom: '1px solid #e5e7eb' }}>
+                <div style={{ position: 'relative' }}>
+                    <Icons.Search
+                        size={16}
+                        style={{
+                            position: 'absolute',
+                            left: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: '#94a3b8'
+                        }}
+                    />
+                    <input
+                        type="text"
+                        placeholder="Search products..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            width: '100%',
+                            padding: '8px 12px 8px 36px',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            fontSize: '14px',
+                            outline: 'none',
+                            boxSizing: 'border-box'
+                        }}
+                        onFocus={(e) => e.target.style.borderColor = '#475569'}
+                        onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                        autoFocus
+                    />
+                </div>
+            </div>
 
-                    {/* Product List with Scroll */}
+            {/* Product List with Scroll */}
+            <div style={{
+                maxHeight: '250px',
+                overflowY: 'auto',
+                overflowX: 'hidden'
+            }}>
+                {filteredProducts.length === 0 ? (
                     <div style={{
-                        maxHeight: '250px',
-                        overflowY: 'auto',
-                        overflowX: 'hidden'
+                        padding: '20px',
+                        textAlign: 'center',
+                        color: '#94a3b8',
+                        fontSize: '14px'
                     }}>
-                        {filteredProducts.length === 0 ? (
-                            <div style={{
-                                padding: '20px',
-                                textAlign: 'center',
-                                color: '#94a3b8',
-                                fontSize: '14px'
-                            }}>
-                                {searchTerm ? 'No products found' : 'No products'}
-                            </div>
-                        ) : (
-                            filteredProducts.map(p => {
-                                const productId = p.id || p.Id;
-                                const isSelected = value === productId;
-                                
-                                return (
-                                    <div
-                                        key={productId}
-                                        onClick={() => {
-                                            onSelect(productId);
-                                            setIsOpen(false);
-                                            setSearchTerm('');
-                                        }}
-                                        style={{
-                                            padding: '12px 16px',
-                                            cursor: 'pointer',
-                                            backgroundColor: isSelected ? '#f0f9ff' : 'white',
-                                            borderBottom: '1px solid #f1f5f9',
-                                            transition: 'background-color 0.2s'
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor = '#f8f9fa';
-                                            }
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            if (!isSelected) {
-                                                e.currentTarget.style.backgroundColor = 'white';
-                                            }
-                                        }}
-                                    >
+                        {searchTerm ? 'No products found' : 'No products'}
+                    </div>
+                ) : (
+                    filteredProducts.map(p => {
+                        const productId = p.id || p.Id;
+                        const isSelected = value === productId;
+
+                        return (
+                            <div
+                                key={productId}
+                                onClick={() => {
+                                    onSelect(productId);
+                                    setIsOpen(false);
+                                    setSearchTerm('');
+                                }}
+                                style={{
+                                    padding: '12px 16px',
+                                    cursor: 'pointer',
+                                    backgroundColor: isSelected ? '#f0f9ff' : 'white',
+                                    borderBottom: '1px solid #f1f5f9',
+                                    transition: 'background-color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!isSelected) {
+                                        e.currentTarget.style.backgroundColor = '#f8f9fa';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!isSelected) {
+                                        e.currentTarget.style.backgroundColor = 'white';
+                                    }
+                                }}
+                            >
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <div style={{ flex: 1 }}>
                                         <div style={{
+                                            fontWeight: isSelected ? '600' : '500',
+                                            fontSize: '14px',
+                                            color: '#334155',
+                                            marginBottom: '4px',
                                             display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center'
+                                            alignItems: 'center',
+                                            gap: '8px'
                                         }}>
-                                            <div style={{ flex: 1 }}>
-                                                <div style={{
-                                                    fontWeight: isSelected ? '600' : '500',
-                                                    fontSize: '14px',
-                                                    color: '#334155',
-                                                    marginBottom: '4px',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    gap: '8px'
-                                                }}>
-                                                    {p.name || p.Name}
-                                                    {isSelected && (
-                                                        <span style={{
-                                                            color: '#059669',
-                                                            fontSize: '12px'
-                                                        }}>✓</span>
-                                                    )}
-                                                </div>
-                                                <div style={{
-                                                    fontSize: '12px',
-                                                    color: '#64748b'
-                                                }}>
-                                                    ID: {productId} • {p.type || p.Type || 'N/A'} • {p.unit || p.Unit || 'N/A'}
-                                                </div>
-                                            </div>
-                                            <div style={{
-                                                textAlign: 'right',
-                                                fontWeight: '600',
-                                                color: '#475569',
-                                                fontSize: '14px',
-                                                marginLeft: '12px'
-                                            }}>
-                                                {new Intl.NumberFormat('vi-VN').format(p.price || p.Price || 0)} đ
-                                            </div>
+                                            {p.name || p.Name}
+                                            {isSelected && (
+                                                <span style={{
+                                                    color: '#059669',
+                                                    fontSize: '12px'
+                                                }}>✓</span>
+                                            )}
+                                        </div>
+                                        <div style={{
+                                            fontSize: '12px',
+                                            color: '#64748b'
+                                        }}>
+                                            ID: {productId} • {p.type || p.Type || 'N/A'} • {p.unit || p.Unit || 'N/A'}
                                         </div>
                                     </div>
-                                );
-                            })
-                        )}
-                    </div>
-                </div>
+                                    <div style={{
+                                        textAlign: 'right',
+                                        fontWeight: '600',
+                                        color: '#475569',
+                                        fontSize: '14px',
+                                        marginLeft: '12px'
+                                    }}>
+                                        {new Intl.NumberFormat('vi-VN').format(p.price || p.Price || 0)} đ
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+        </div>
     );
 
     return (
@@ -240,12 +240,12 @@ const ProductSelectDropdown = ({ value, products, onSelect, placeholder }) => {
                     onMouseLeave={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
                 >
                     <span style={{ color: value ? '#334155' : '#94a3b8', flex: 1, textAlign: 'left' }}>
-                        {selectedProduct 
+                        {selectedProduct
                             ? `${selectedProduct.name || selectedProduct.Name} - ${new Intl.NumberFormat('vi-VN').format(selectedProduct.price || selectedProduct.Price || 0)} đ`
                             : placeholder
                         }
                     </span>
-                    <span style={{ 
+                    <span style={{
                         transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                         transition: 'transform 0.2s',
                         color: '#94a3b8',
@@ -274,13 +274,54 @@ const COrder = ({ onOrderCreated }) => {
         customerName: ''
     });
     const [loading, setLoading] = useState(false);
+    const [loadingOrderId, setLoadingOrderId] = useState(false);
 
-    // Load products when modal opens
+    // Load products and order ID when modal opens
     useEffect(() => {
         if (isModalOpen) {
             fetchProducts();
+            fetchNextOrderId();
         }
     }, [isModalOpen]);
+
+    // Fetch next order ID from backend
+    const fetchNextOrderId = async () => {
+        try {
+            setLoadingOrderId(true);
+            // Get all orders to find the next ID
+            const response = await orderAPI.getAllOrders();
+            if (response.success) {
+                const orders = response.data || [];
+                // Find max order ID
+                const orderIds = orders
+                    .map(o => o.id || o.Id)
+                    .filter(id => id && id.startsWith('ORD'))
+                    .map(id => {
+                        const match = id.match(/ORD(\d+)/);
+                        return match ? parseInt(match[1], 10) : 0;
+                    });
+
+                const maxId = orderIds.length > 0 ? Math.max(...orderIds) : 0;
+                const nextId = maxId + 1;
+                const nextOrderId = `ORD${nextId.toString().padStart(3, '0')}`;
+
+                setFormData(prev => ({
+                    ...prev,
+                    id: nextOrderId
+                }));
+            }
+        } catch (err) {
+            console.error('Error fetching next order ID:', err);
+            // Fallback: use timestamp-based ID
+            const fallbackId = `ORD${Date.now().toString().slice(-6)}`;
+            setFormData(prev => ({
+                ...prev,
+                id: fallbackId
+            }));
+        } finally {
+            setLoadingOrderId(false);
+        }
+    };
 
     const fetchProducts = async () => {
         try {
@@ -339,7 +380,7 @@ const COrder = ({ onOrderCreated }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         // Validation
         if (selectedItems.length === 0) {
             showError('Please select at least one product');
@@ -358,15 +399,19 @@ const COrder = ({ onOrderCreated }) => {
             const total = calculateTotal();
             const userId = user?.id || user?.Id || '';
 
-            // Create order first
+            // Create order first (backend will auto-generate ID if not provided)
             const orderResponse = await orderAPI.createOrder({
-                id: formData.id,
+                // id: formData.id, // Let backend auto-generate if empty, or use provided ID
+                ...(formData.id && { id: formData.id }), // Only include id if it exists
                 type: formData.type,
                 date: formData.date,
                 uId: userId,
                 customerName: formData.customerName,
                 total: total
             });
+
+            // Get the actual order ID from response (in case backend generated it)
+            const createdOrderId = orderResponse.data?.id || orderResponse.data?.Id || formData.id;
 
             if (!orderResponse.success) {
                 throw new Error(orderResponse.message || 'Failed to create order');
@@ -375,7 +420,7 @@ const COrder = ({ onOrderCreated }) => {
             // Create order details for each selected product
             const orderDetailsPromises = selectedItems.map(item => {
                 return orderDetailAPI.createOrderDetail({
-                    oid: formData.id,
+                    oid: createdOrderId, // Use the actual order ID from response
                     pid: item.productId,
                     number: item.quantity,
                     note: ''
@@ -385,8 +430,9 @@ const COrder = ({ onOrderCreated }) => {
             await Promise.all(orderDetailsPromises);
 
             showSuccess('Order created successfully!');
+            // Reset form but keep modal open for next order
             setFormData({
-                id: '',
+                id: '', // Will be auto-filled when modal reopens
                 type: '',
                 date: new Date().toISOString().split('T')[0],
                 customerName: ''
@@ -414,6 +460,7 @@ const COrder = ({ onOrderCreated }) => {
         });
         setSelectedItems([]);
     };
+
 
     if (!isAdmin) return null;
 
@@ -472,10 +519,10 @@ const COrder = ({ onOrderCreated }) => {
                             <input
                                 type="text"
                                 name="id"
-                                value={formData.id}
-                                onChange={handleChange}
+                                value={loadingOrderId ? 'Loading...' : formData.id}
+                                disabled
                                 required
-                                placeholder="Enter order ID"
+                                placeholder="Auto-generated"
                                 style={{
                                     width: '100%',
                                     padding: '12px 16px',
@@ -484,10 +531,11 @@ const COrder = ({ onOrderCreated }) => {
                                     fontSize: '14px',
                                     outline: 'none',
                                     boxSizing: 'border-box',
-                                    transition: 'all 0.2s'
+                                    backgroundColor: '#f1f5f9',
+                                    color: '#64748b',
+                                    cursor: 'not-allowed',
+                                    fontWeight: '600'
                                 }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                             />
                         </div>
                         <div>
@@ -660,7 +708,12 @@ const COrder = ({ onOrderCreated }) => {
                             <div style={{
                                 border: '1px solid #e5e7eb',
                                 borderRadius: '8px',
-                                overflow: 'hidden'
+                                overflow: 'hidden',
+                                maxHeight: '200px', // Giảm chiều cao hơn nữa để tiết kiệm không gian
+                                overflowY: 'auto', // Thêm scrollbar khi cần
+                                overflowX: 'hidden',
+                                scrollbarWidth: 'thin', // Thinner scrollbar
+                                scrollbarColor: '#cbd5e1 #f1f5f9' // Custom scrollbar colors
                             }}>
                                 {selectedItems.map((item, index) => {
                                     const product = products.find(p => (p.id || p.Id) === item.productId);
@@ -670,46 +723,50 @@ const COrder = ({ onOrderCreated }) => {
                                         <div
                                             key={index}
                                             style={{
-                                                padding: '10px 12px',
+                                                padding: '8px 10px', // Giảm padding để tiết kiệm không gian
                                                 borderBottom: index < selectedItems.length - 1 ? '1px solid #e5e7eb' : 'none',
                                                 display: 'grid',
                                                 gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
-                                                gap: '8px',
-                                                alignItems: 'center'
+                                                gap: '6px', // Giảm gap
+                                                alignItems: 'center',
+                                                minHeight: '50px' // Giảm min height
                                             }}
                                         >
-                                            <ProductSelectDropdown
-                                                value={item.productId}
-                                                products={products || []}
-                                                onSelect={(productId) => handleProductChange(index, 'productId', productId)}
-                                                placeholder={loadingProducts ? "Loading..." : products.length === 0 ? "No products" : "Select product"}
-                                            />
+                                            <div style={{ minWidth: 0 }}> {/* Đảm bảo dropdown không overflow */}
+                                                <ProductSelectDropdown
+                                                    value={item.productId}
+                                                    products={products || []}
+                                                    onSelect={(productId) => handleProductChange(index, 'productId', productId)}
+                                                    placeholder={loadingProducts ? "Loading..." : products.length === 0 ? "No products" : "Select product"}
+                                                />
+                                            </div>
                                             <input
                                                 type="number"
                                                 min="1"
                                                 value={item.quantity}
                                                 onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
-                                                placeholder="Quantity"
+                                                placeholder="Qty"
                                                 required
                                                 style={{
-                                                    padding: '10px 12px',
+                                                    padding: '8px 10px', // Giảm padding
                                                     border: '1px solid #cbd5e1',
                                                     borderRadius: '6px',
-                                                    fontSize: '14px',
+                                                    fontSize: '13px', // Giảm font size
                                                     outline: 'none'
                                                 }}
                                             />
                                             <div style={{
-                                                padding: '10px 12px',
+                                                padding: '8px 6px', // Giảm padding
                                                 textAlign: 'right',
                                                 fontWeight: '600',
-                                                color: '#475569'
+                                                color: '#475569',
+                                                fontSize: '13px' // Giảm font size
                                             }}>
                                                 {new Intl.NumberFormat('vi-VN').format(itemTotal)} đ
                                             </div>
                                             <div style={{
-                                                padding: '10px 12px',
-                                                fontSize: '13px',
+                                                padding: '8px 6px', // Giảm padding
+                                                fontSize: '12px', // Giảm font size
                                                 color: '#64748b'
                                             }}>
                                                 {product ? (product.unit || product.Unit || '') : ''}
@@ -718,7 +775,7 @@ const COrder = ({ onOrderCreated }) => {
                                                 type="button"
                                                 onClick={() => handleRemoveProduct(index)}
                                                 style={{
-                                                    padding: '8px',
+                                                    padding: '6px', // Giảm padding
                                                     background: '#fee2e2',
                                                     color: '#dc2626',
                                                     border: 'none',
@@ -726,10 +783,12 @@ const COrder = ({ onOrderCreated }) => {
                                                     cursor: 'pointer',
                                                     display: 'flex',
                                                     alignItems: 'center',
-                                                    justifyContent: 'center'
+                                                    justifyContent: 'center',
+                                                    minWidth: '32px',
+                                                    height: '32px'
                                                 }}
                                             >
-                                                <Icons.Delete size={16} />
+                                                <Icons.Delete size={14} /> {/* Giảm icon size */}
                                             </button>
                                         </div>
                                     );
@@ -744,7 +803,12 @@ const COrder = ({ onOrderCreated }) => {
                         justifyContent: 'flex-end',
                         paddingTop: '12px',
                         borderTop: '1px solid #e5e7eb',
-                        marginTop: '12px'
+                        marginTop: '12px',
+                        position: 'sticky', // Sticky footer để luôn visible
+                        bottom: 0,
+                        backgroundColor: 'white', // Background để không bị transparent
+                        zIndex: 10,
+                        paddingBottom: '8px'
                     }}>
                         <button
                             type="button"

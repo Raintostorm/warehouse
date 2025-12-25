@@ -8,17 +8,22 @@ const crypto = require('crypto');
 const db = require('../db');
 const { sendPasswordResetEmail } = require('../utils/emailService');
 
-const JWT_SECRET = process.env.JWT_SECRET;
+// Get JWT_SECRET with fallback for development
+// In development, use a default if not set. In production, require it.
+let JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET || JWT_SECRET.trim() === '') {
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET must be set in production environment');
+    } else {
+        // Use a default for development
+        JWT_SECRET = 'dev-secret-key-change-in-production-do-not-use-in-production';
+        console.warn('⚠️  WARNING: JWT_SECRET not set, using default. This is insecure for production!');
+        console.warn('💡 Please set JWT_SECRET in your .env file for security.');
+    }
+}
+
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
-
-// Validate JWT_SECRET in production
-if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET must be set in production environment');
-}
-
-if (!JWT_SECRET) {
-    console.warn('WARNING: JWT_SECRET not set, using default. This is insecure for production!');
-}
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const PASSWORD_RESET_TOKEN_EXP_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_EXP_MINUTES) || 15;
 
@@ -33,8 +38,17 @@ const AuthS = {
 
         // Find user by email - use model directly to get password
         let user;
-        user = await UsersM.findByEmail(email);
+        try {
+            user = await UsersM.findByEmail(email);
+        } catch (error) {
+            const logger = require('../utils/logger');
+            logger.error('Error finding user by email', { email, error: error.message });
+            throw new Error('Invalid email or password');
+        }
+
         if (!user) {
+            const logger = require('../utils/logger');
+            logger.warn('User not found', { email });
             throw new Error('Invalid email or password');
         }
 
@@ -44,12 +58,24 @@ const AuthS = {
         const userEmail = user.email || user.Email;
 
         if (!userPassword) {
+            const logger = require('../utils/logger');
+            logger.warn('User has no password', { email, userId });
             throw new Error('Invalid email or password');
         }
 
         // Verify password
-        const isPasswordValid = await bcrypt.compare(password, userPassword);
+        let isPasswordValid = false;
+        try {
+            isPasswordValid = await bcrypt.compare(password, userPassword);
+        } catch (error) {
+            const logger = require('../utils/logger');
+            logger.error('Error comparing password', { email, error: error.message });
+            throw new Error('Invalid email or password');
+        }
+
         if (!isPasswordValid) {
+            const logger = require('../utils/logger');
+            logger.warn('Invalid password', { email, userId });
             throw new Error('Invalid email or password');
         }
 
@@ -65,6 +91,11 @@ const AuthS = {
                 .filter(name => name); // Loại bỏ undefined/null
         } catch (error) {
             // User might not have roles yet, that's okay
+        }
+
+        // Ensure JWT_SECRET is set before signing
+        if (!JWT_SECRET || JWT_SECRET.trim() === '') {
+            throw new Error('JWT_SECRET is not configured. Please set JWT_SECRET in your .env file.');
         }
 
         // Generate JWT token
@@ -93,6 +124,11 @@ const AuthS = {
     },
 
     verifyToken: (token) => {
+        // Ensure JWT_SECRET is set before verifying
+        if (!JWT_SECRET || JWT_SECRET.trim() === '') {
+            throw new Error('JWT_SECRET is not configured. Please set JWT_SECRET in your .env file.');
+        }
+
         try {
             return jwt.verify(token, JWT_SECRET);
         } catch (error) {
@@ -168,6 +204,11 @@ const AuthS = {
                 .filter(name => name);
         } catch (error) {
             // User might not have roles yet, that's okay
+        }
+
+        // Ensure JWT_SECRET is set before signing
+        if (!JWT_SECRET || JWT_SECRET.trim() === '') {
+            throw new Error('JWT_SECRET is not configured. Please set JWT_SECRET in your .env file.');
         }
 
         // Generate JWT token

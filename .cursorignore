@@ -1,0 +1,10 @@
+# Cursor ignore file - Ẩn các file/folder không cần thiết
+# docs/
+node_modules/
+dist/
+build/
+*.log
+.env*
+coverage/
+.DS_Store
+Thumbs.db

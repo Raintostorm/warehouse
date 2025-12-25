@@ -113,13 +113,19 @@ const OrdersC = {
     generateBill: async (req, res) => {
         try {
             const { id } = req.params;
-            const { productIds } = req.body; // Array of product IDs to include in bill
+            const { orderIds, productIds } = req.body; // Support multiple orderIds or single id
 
-            const doc = await generateBillS.generateBill(id, productIds);
+            // Support both single orderId (from params) and multiple orderIds (from body)
+            const ordersToProcess = orderIds && orderIds.length > 0 ? orderIds : [id];
+
+            const doc = await generateBillS.generateBill(ordersToProcess, productIds, req);
 
             // Set headers for PDF download
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename="bill-${id}-${Date.now()}.pdf"`);
+            const filename = ordersToProcess.length === 1
+                ? `bill-${ordersToProcess[0]}-${Date.now()}.pdf`
+                : `bill-${ordersToProcess.join('-')}-${Date.now()}.pdf`;
+            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
             // Pipe PDF to response
             doc.pipe(res);

@@ -49,11 +49,25 @@ const createStore = (prefix) => {
     } catch (error) {
         // Redis không available, sẽ fallback về memory store tự động
     }
-    return undefined; // Fallback về memory store
+    return undefined; // Fallback về memory store (không thể clear programmatically)
 };
 
 // Rate limiter cho login
-const loginLimiter = rateLimit({
+// Tạm thời disable trong development để debug
+// NODE_ENV có thể undefined (default là development)
+const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true' || isDevelopment;
+
+// Tạo một no-op middleware nếu disable
+const noOpLimiter = (req, res, next) => {
+    // Log để confirm rate limit đã disable
+    if (isDevelopment) {
+        // Silently pass through
+    }
+    next();
+};
+
+const loginLimiter = disableRateLimit ? noOpLimiter : rateLimit({
     store: createStore('login'),
     keyGenerator: (req) => {
         // Sử dụng IP address với ipKeyGenerator helper
@@ -64,19 +78,20 @@ const loginLimiter = rateLimit({
     max: 5, // 5 requests
     standardHeaders: true, // Return rate limit info in headers
     legacyHeaders: false,
-    skipSuccessfulRequests: false, // Đếm tất cả requests (kể cả thành công)
+    skipSuccessfulRequests: true, // Bỏ qua successful requests (chỉ đếm failed)
     handler: (req, res, next, options) => {
         const resetTime = res.get('X-RateLimit-Reset');
         const remaining = res.get('X-RateLimit-Remaining') || 0;
         const limit = res.get('X-RateLimit-Limit') || options.max;
-        const retryAfter = resetTime ? Math.ceil((new Date(resetTime).getTime() - Date.now()) / 1000) : 900;
+        const retryAfter = resetTime ? Math.ceil((new Date(resetTime).getTime() - Date.now()) / 1000) : Math.ceil(options.windowMs / 1000);
         const retryAfterFormatted = formatTime(retryAfter * 1000);
 
         const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
 
         res.status(429).json({
             success: false,
-            message: `Quá nhiều lần đăng nhập sai. Vui lòng thử lại sau ${retryAfterFormatted}`,
+            message: `Quá nhiều lần đăng nhập. Vui lòng thử lại sau ${retryAfterFormatted}`,
+            error: 'Too many requests',
             retryAfter: retryAfter,
             retryAfterFormatted: retryAfterFormatted,
             resetTime: resetTime,
@@ -173,7 +188,7 @@ const importLimiter = rateLimit({
         };
     },
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: false
 });
 
 module.exports = {

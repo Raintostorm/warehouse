@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { userAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
@@ -19,6 +19,16 @@ const CUser = ({ onUserCreated }) => {
         password: ''
     });
     const [loading, setLoading] = useState(false);
+    const [generatedId, setGeneratedId] = useState('');
+
+    // Generate user ID when modal opens
+    useEffect(() => {
+        if (isModalOpen) {
+            // Generate a temporary ID for display (backend will generate the actual one)
+            const timestamp = Date.now().toString().slice(-6);
+            setGeneratedId(`U${timestamp}`);
+        }
+    }, [isModalOpen]);
 
     const handleChange = (e) => {
         setFormData({
@@ -32,7 +42,9 @@ const CUser = ({ onUserCreated }) => {
         setLoading(true);
 
         try {
-            const response = await userAPI.createUser(formData);
+            // Don't send ID - let backend generate it automatically
+            const { id, ...userDataWithoutId } = formData;
+            const response = await userAPI.createUser(userDataWithoutId);
 
             if (response.success) {
                 showSuccess('User created successfully!');
@@ -44,6 +56,7 @@ const CUser = ({ onUserCreated }) => {
                     address: '',
                     password: ''
                 });
+                setGeneratedId('');
                 setIsModalOpen(false);
                 if (onUserCreated) {
                     onUserCreated();
@@ -68,6 +81,7 @@ const CUser = ({ onUserCreated }) => {
             address: '',
             password: ''
         });
+        setGeneratedId('');
     };
 
     if (!isAdmin) return null;
@@ -125,15 +139,13 @@ const CUser = ({ onUserCreated }) => {
                                 color: '#334155',
                                 fontSize: '14px'
                             }}>
-                                ID <span style={{ color: '#ef4444' }}>*</span>
+                                User ID (Auto-generated)
                             </label>
                             <input
                                 type="text"
-                                name="id"
-                                value={formData.id}
-                                onChange={handleChange}
-                                required
-                                placeholder="Enter user ID"
+                                value={generatedId || 'Will be generated automatically'}
+                                disabled
+                                readOnly
                                 style={{
                                     width: '100%',
                                     padding: '12px 16px',
@@ -141,12 +153,20 @@ const CUser = ({ onUserCreated }) => {
                                     borderRadius: '8px',
                                     fontSize: '14px',
                                     outline: 'none',
-                                    transition: 'all 0.2s',
+                                    backgroundColor: '#f1f5f9',
+                                    color: '#64748b',
+                                    cursor: 'not-allowed',
                                     boxSizing: 'border-box'
                                 }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                             />
+                            <small style={{
+                                display: 'block',
+                                marginTop: '4px',
+                                color: '#64748b',
+                                fontSize: '12px'
+                            }}>
+                                User ID will be automatically generated when you create the user
+                            </small>
                         </div>
 
                         <div>

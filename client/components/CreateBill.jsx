@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { orderAPI, orderDetailAPI, productAPI } from '../services/api';
+import { orderAPI, billAPI } from '../services/api';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 import Modal from '../src/components/Modal';
@@ -13,6 +13,7 @@ const CreateBill = ({ onClose }) => {
     const [allOrderDetails, setAllOrderDetails] = useState([]); // All products from selected orders
     const [selectedProducts, setSelectedProducts] = useState([]); // Selected product IDs with order info
     const [loadingData, setLoadingData] = useState(false);
+    const [showPDFConfirm, setShowPDFConfirm] = useState(false);
 
     // Load orders when modal opens
     useEffect(() => {
@@ -21,22 +22,41 @@ const CreateBill = ({ onClose }) => {
         }
     }, []);
 
-    // Load order details when selected orders change
-    useEffect(() => {
-        if (selectedOrderIds.length > 0) {
-            fetchOrderDetails();
-        } else {
-            setAllOrderDetails([]);
-            setSelectedProducts([]);
-        }
-    }, [selectedOrderIds]);
 
     const fetchOrders = async () => {
         try {
             setLoadingOrders(true);
-            const response = await orderAPI.getAllOrders();
-            if (response.success) {
-                setOrders(response.data || []);
+            const ordersResponse = await orderAPI.getAllOrders();
+            const billsResponse = await billAPI.getAllBills();
+            
+            if (ordersResponse.success && billsResponse.success) {
+                const allOrders = ordersResponse.data || [];
+                const allBills = billsResponse.data || [];
+                
+                // Filter out:
+                // 1. gateway_payment orders (these are temporary orders created for payments, not real orders)
+                // 2. Orders that already have bills
+                const ordersWithoutBills = allOrders.filter(order => {
+                    const orderId = order.id || order.Id;
+                    const orderType = order.type || order.Type;
+                    
+                    // Exclude gateway_payment orders
+                    if (orderType === 'gateway_payment') {
+                        return false;
+                    }
+                    
+                    // Exclude orders that already have bills
+                    return !allBills.some(bill => (bill.order_id || bill.orderId) === orderId);
+                });
+                
+                // Sort by created_at DESC (most recent first)
+                ordersWithoutBills.sort((a, b) => {
+                    const dateA = new Date(a.created_at || a.CreatedAt || 0);
+                    const dateB = new Date(b.created_at || b.CreatedAt || 0);
+                    return dateB - dateA;
+                });
+                
+                setOrders(ordersWithoutBills);
             }
         } catch (err) {
             showError('Failed to load orders: ' + (err.response?.data?.error || err.message));
@@ -45,59 +65,6 @@ const CreateBill = ({ onClose }) => {
         }
     };
 
-    const fetchOrderDetails = async () => {
-        try {
-            setLoadingData(true);
-            const allDetails = [];
-
-            // Fetch order details for each selected order
-            for (const orderId of selectedOrderIds) {
-                try {
-                    const detailsResponse = await orderDetailAPI.getOrderDetailsByOrderId(orderId);
-                    if (detailsResponse.success && detailsResponse.data) {
-                        // Add order info to each detail
-                        const order = orders.find(o => (o.id || o.Id) === orderId);
-                        const detailsWithOrder = detailsResponse.data.map(od => ({
-                            ...od,
-                            orderId: orderId,
-                            orderInfo: order,
-                            pid: od.pid || od.product_id // Normalize
-                        }));
-                        allDetails.push(...detailsWithOrder);
-                    }
-                } catch (err) {
-                    console.error(`Error fetching details for order ${orderId}:`, err);
-                }
-            }
-
-            // Fetch product info for each detail
-            const detailsWithProducts = await Promise.all(
-                allDetails.map(async (od) => {
-                    const productId = od.pid || od.product_id;
-                    try {
-                        const productResponse = await productAPI.getProductById(productId);
-                        return {
-                            ...od,
-                            product: productResponse.success ? productResponse.data : null
-                        };
-                    } catch (err) {
-                        return {
-                            ...od,
-                            product: null
-                        };
-                    }
-                })
-            );
-
-            setAllOrderDetails(detailsWithProducts);
-            // Select all by default
-            setSelectedProducts(detailsWithProducts.map(od => `${od.orderId}_${od.pid}`));
-        } catch (err) {
-            showError('Failed to load order details: ' + (err.response?.data?.error || err.message));
-        } finally {
-            setLoadingData(false);
-        }
-    };
 
     const handleToggleOrder = (orderId) => {
         setSelectedOrderIds(prev => {
@@ -117,87 +84,83 @@ const CreateBill = ({ onClose }) => {
         }
     };
 
-    const handleToggleProduct = (orderId, productId) => {
-        const key = `${orderId}_${productId}`;
-        setSelectedProducts(prev => {
-            if (prev.includes(key)) {
-                return prev.filter(k => k !== key);
-            } else {
-                return [...prev, key];
-            }
-        });
-    };
 
-    const handleSelectAllProducts = () => {
-        if (selectedProducts.length === allOrderDetails.length) {
-            setSelectedProducts([]);
-        } else {
-            setSelectedProducts(allOrderDetails.map(od => `${od.orderId}_${od.pid}`));
-        }
-    };
-
-    const handleGenerateBill = async () => {
+    const handleGenerateBill = () => {
         if (selectedOrderIds.length === 0) {
-            showError('Please select at least one order');
+            showError('Vui lòng chọn ít nhất một đơn hàng');
             return;
         }
+        // Show confirmation modal to ask if user wants PDF
+        setShowPDFConfirm(true);
+    };
 
-        if (selectedProducts.length === 0) {
-            showError('Please select at least one product');
-            return;
-        }
-
+    const handleConfirmCreateBill = async (createPDF) => {
+        setShowPDFConfirm(false);
+        
         try {
             setLoading(true);
-            
-            // Group selected products by order
-            const productsByOrder = {};
-            selectedProducts.forEach(key => {
-                const [orderId, productId] = key.split('_');
-                if (!productsByOrder[orderId]) {
-                    productsByOrder[orderId] = [];
+
+            if (createPDF) {
+                // Generate bill với PDF từ tất cả selected orders
+                const response = await orderAPI.generateBill(selectedOrderIds);
+
+                // Create blob and download
+                const blob = new Blob([response.data], { type: 'application/pdf' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `bill-${selectedOrderIds.join('-')}-${Date.now()}.pdf`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+
+                showSuccess('Tạo hóa đơn PDF thành công!');
+            } else {
+                // Chỉ tạo bill records (không tạo PDF)
+                const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id || o.Id));
+                
+                for (const order of selectedOrders) {
+                    const orderId = order.id || order.Id;
+                    try {
+                        await billAPI.createBill({
+                            orderId: orderId,
+                            totalAmount: order.total || 0,
+                            status: 'pending'
+                        });
+                    } catch (err) {
+                        // Nếu bill đã tồn tại, bỏ qua và tiếp tục với order tiếp theo
+                        if (err.response?.data?.error?.includes('already exists')) {
+                            continue;
+                        }
+                        throw err;
+                    }
                 }
-                productsByOrder[orderId].push(productId);
-            });
 
-            // For now, generate bill from first order with all selected products
-            // TODO: Update backend to support multiple orders
-            const firstOrderId = selectedOrderIds[0];
-            const productIds = productsByOrder[firstOrderId] || [];
+                showSuccess(`Đã tạo ${selectedOrders.length} hóa đơn thành công!`);
+            }
 
-            const response = await orderAPI.generateBill(firstOrderId, productIds);
+            // Clear selected orders
+            setSelectedOrderIds([]);
             
-            // Create blob and download
-            const blob = new Blob([response.data], { type: 'application/pdf' });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `bill-${selectedOrderIds.join('-')}-${Date.now()}.pdf`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            showSuccess('Invoice created successfully!');
+            // Refresh orders list to update filtered list (wait for it to complete)
+            await fetchOrders();
+            
+            // Close modal after refresh completes
             if (onClose) {
                 onClose();
             }
         } catch (err) {
-            showError('Failed to create invoice: ' + (err.response?.data?.error || err.message));
+            showError('Không thể tạo hóa đơn: ' + (err.response?.data?.error || err.message));
         } finally {
             setLoading(false);
         }
     };
 
     const calculateTotal = () => {
-        return allOrderDetails
-            .filter(od => selectedProducts.includes(`${od.orderId}_${od.pid}`))
-            .reduce((sum, od) => {
-                const product = od.product;
-                const price = product ? (product.price || product.Price || 0) : 0;
-                const quantity = od.number || 0;
-                return sum + (price * quantity);
-            }, 0);
+        return orders
+            .filter(o => selectedOrderIds.includes(o.id || o.Id))
+            .reduce((sum, order) => sum + (order.total || 0), 0);
     };
 
     return (
@@ -228,7 +191,7 @@ const CreateBill = ({ onClose }) => {
                                 fontWeight: '500'
                             }}
                         >
-                            {selectedOrderIds.length === orders.length ? 'Deselect All' : 'Select All'}
+                            {selectedOrderIds.length === orders.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
                         </button>
                     </div>
 
@@ -245,7 +208,7 @@ const CreateBill = ({ onClose }) => {
                         }}>
                             {orders.length === 0 ? (
                                 <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
-                                    No orders available
+                                    Không có đơn hàng nào
                                 </div>
                             ) : (
                                 <div style={{ padding: '8px' }}>
@@ -293,130 +256,6 @@ const CreateBill = ({ onClose }) => {
                     )}
                 </div>
 
-                {/* Product Selection */}
-                {selectedOrderIds.length > 0 && (
-                    <div style={{ marginBottom: '24px' }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '16px'
-                        }}>
-                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#334155' }}>
-                                Select Products ({selectedProducts.length}/{allOrderDetails.length})
-                            </h3>
-                            {allOrderDetails.length > 0 && (
-                                <button
-                                    type="button"
-                                    onClick={handleSelectAllProducts}
-                                    style={{
-                                        padding: '8px 16px',
-                                        background: '#f1f5f9',
-                                        color: '#475569',
-                                        border: '1px solid #cbd5e1',
-                                        borderRadius: '6px',
-                                        cursor: 'pointer',
-                                        fontSize: '14px',
-                                        fontWeight: '500'
-                                    }}
-                                >
-                                    {selectedProducts.length === allOrderDetails.length ? 'Deselect All' : 'Select All'}
-                                </button>
-                            )}
-                        </div>
-
-                        {loadingData ? (
-                            <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
-                                Loading products...
-                            </div>
-                        ) : (
-                            <div style={{
-                                maxHeight: '400px',
-                                overflowY: 'auto',
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '8px'
-                            }}>
-                                {allOrderDetails.length === 0 ? (
-                                    <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
-                                        Không có sản phẩm nào trong các đơn hàng đã chọn
-                                    </div>
-                                ) : (
-                                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                        <thead style={{ backgroundColor: '#f8f9fa', position: 'sticky', top: 0 }}>
-                                            <tr>
-                                                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600', width: '40px' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedProducts.length === allOrderDetails.length && allOrderDetails.length > 0}
-                                                        onChange={handleSelectAllProducts}
-                                                        style={{ cursor: 'pointer' }}
-                                                    />
-                                                </th>
-                                                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600' }}>Order</th>
-                                                <th style={{ padding: '12px', textAlign: 'left', fontSize: '13px', fontWeight: '600' }}>Product</th>
-                                                <th style={{ padding: '12px', textAlign: 'center', fontSize: '13px', fontWeight: '600', width: '100px' }}>Quantity</th>
-                                                <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600', width: '120px' }}>Unit Price</th>
-                                                <th style={{ padding: '12px', textAlign: 'right', fontSize: '13px', fontWeight: '600', width: '140px' }}>Subtotal</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {allOrderDetails.map((od, index) => {
-                                                const product = od.product;
-                                                const key = `${od.orderId}_${od.pid}`;
-                                                const isSelected = selectedProducts.includes(key);
-                                                const price = product ? (product.price || product.Price || 0) : 0;
-                                                const quantity = od.number || 0;
-                                                const subtotal = price * quantity;
-
-                                                return (
-                                                    <tr
-                                                        key={key}
-                                                        style={{
-                                                            borderBottom: '1px solid #e5e7eb',
-                                                            backgroundColor: isSelected ? '#f0f9ff' : 'white',
-                                                            cursor: 'pointer'
-                                                        }}
-                                                        onClick={() => handleToggleProduct(od.orderId, od.pid)}
-                                                    >
-                                                        <td style={{ padding: '12px', textAlign: 'center' }}>
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={isSelected}
-                                                                onChange={() => handleToggleProduct(od.orderId, od.pid)}
-                                                                onClick={(e) => e.stopPropagation()}
-                                                                style={{ cursor: 'pointer' }}
-                                                            />
-                                                        </td>
-                                                        <td style={{ padding: '12px', fontSize: '14px', fontWeight: '500' }}>
-                                                            {od.orderId}
-                                                        </td>
-                                                        <td style={{ padding: '12px', fontSize: '14px' }}>
-                                                            {product ? (product.name || product.Name) : `Product ${od.pid}`}
-                                                            {product && (product.unit || product.Unit) && (
-                                                                <span style={{ color: '#999', fontSize: '12px', marginLeft: '8px' }}>
-                                                                    ({product.unit || product.Unit})
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td style={{ padding: '12px', textAlign: 'center', fontSize: '14px' }}>
-                                                            {quantity}
-                                                        </td>
-                                                        <td style={{ padding: '12px', textAlign: 'right', fontSize: '14px' }}>
-                                                            {new Intl.NumberFormat('vi-VN').format(price)} đ
-                                                        </td>
-                                                        <td style={{ padding: '12px', textAlign: 'right', fontSize: '14px', fontWeight: '500' }}>
-                                                            {new Intl.NumberFormat('vi-VN').format(subtotal)} đ
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                )}
 
                 {/* Total */}
                 {selectedOrderIds.length > 0 && (
@@ -465,16 +304,16 @@ const CreateBill = ({ onClose }) => {
                     </button>
                     <button
                         onClick={handleGenerateBill}
-                        disabled={loading || selectedOrderIds.length === 0 || selectedProducts.length === 0}
+                        disabled={loading || selectedOrderIds.length === 0}
                         style={{
                             padding: '12px 24px',
-                            background: loading || selectedOrderIds.length === 0 || selectedProducts.length === 0
+                            background: loading || selectedOrderIds.length === 0
                                 ? '#94a3b8'
                                 : 'linear-gradient(135deg, #475569 0%, #334155 100%)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',
-                            cursor: loading || selectedOrderIds.length === 0 || selectedProducts.length === 0 ? 'not-allowed' : 'pointer',
+                            cursor: loading || selectedOrderIds.length === 0 ? 'not-allowed' : 'pointer',
                             fontSize: '14px',
                             fontWeight: '600',
                             transition: 'all 0.2s',
@@ -489,12 +328,83 @@ const CreateBill = ({ onClose }) => {
                             </>
                         ) : (
                             <>
-                                <Icons.Success size={16} /> Create Invoice PDF
+                                <Icons.Success size={16} /> Create Invoice
                             </>
                         )}
                     </button>
                 </div>
             </div>
+
+            {/* PDF Confirmation Modal */}
+            {showPDFConfirm && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 10000
+                }} onClick={() => setShowPDFConfirm(false)}>
+                    <div style={{
+                        backgroundColor: 'white',
+                        padding: '24px',
+                        borderRadius: '12px',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                        minWidth: '400px',
+                        maxWidth: '500px',
+                        zIndex: 10001
+                    }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '600', color: '#334155' }}>
+                            Tạo hóa đơn PDF?
+                        </h3>
+                        <p style={{ margin: '0 0 24px 0', fontSize: '14px', color: '#64748b', lineHeight: '1.6' }}>
+                            Bạn có muốn tạo file PDF cho hóa đơn không? Nếu không, hệ thống sẽ chỉ tạo bản ghi hóa đơn trong cơ sở dữ liệu.
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => {
+                                    setShowPDFConfirm(false);
+                                    handleConfirmCreateBill(false);
+                                }}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: '#f1f5f9',
+                                    color: '#475569',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '500'
+                                }}
+                            >
+                                Không, chỉ tạo bản ghi
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setShowPDFConfirm(false);
+                                    handleConfirmCreateBill(true);
+                                }}
+                                style={{
+                                    padding: '10px 20px',
+                                    background: 'linear-gradient(135deg, #475569 0%, #334155 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '600'
+                                }}
+                            >
+                                Có, tạo PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </Modal>
     );
 };

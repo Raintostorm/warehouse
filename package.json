@@ -1,9 +1,27 @@
 {
   "dependencies": {
     "connect-redis": "^9.0.0",
+    "crypto": "^1.0.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
     "ioredis": "^5.8.2",
+    "moment": "^2.30.1",
+    "qs": "^6.14.0",
     "winston": "^3.19.0",
     "winston-daily-rotate-file": "^5.0.0"
-  }
+  },
+  "name": "uh",
+  "version": "1.0.0",
+  "description": "Hệ thống quản lý kho hàng với đầy đủ tính năng CRUD, Payment System (VNPay), và nhiều tính năng khác.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
 }

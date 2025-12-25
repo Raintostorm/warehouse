@@ -13,7 +13,18 @@ const AuthC = {
                 });
             }
 
+            logger.info('Login attempt', { email, ip: req.ip });
+
             const result = await AuthS.login(email, password);
+
+            logger.info('Login successful', {
+                email,
+                userId: result.user?.id || result.user?.Id,
+                hasToken: !!result.token,
+                tokenLength: result.token?.length,
+                hasUser: !!result.user,
+                roleNames: result.roleNames || []
+            });
 
             res.json({
                 success: true,
@@ -26,6 +37,8 @@ const AuthC = {
                 statusCode = 401;
             } else if (error.message === 'Email and password are required') {
                 statusCode = 400;
+            } else if (error.message.includes('JWT_SECRET')) {
+                statusCode = 500;
             }
 
             // Log error for debugging
@@ -134,7 +147,17 @@ const AuthC = {
                 });
             }
 
+            logger.debug('Token verification request', {
+                tokenLength: token.length,
+                tokenPrefix: token.substring(0, 20) + '...'
+            });
+
             const decoded = AuthS.verifyToken(token);
+
+            logger.debug('Token verified successfully', {
+                userId: decoded.id,
+                email: decoded.email
+            });
 
             // Lấy user data và roles từ database
             const UserS = require('../services/userS');
