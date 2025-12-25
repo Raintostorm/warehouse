@@ -79,7 +79,7 @@ function App() {
       const hasToken = !!localStorage.getItem('token');
       const hasUser = !!localStorage.getItem('user');
       return hasToken && hasUser;
-    } catch (_e) {
+    } catch {
       return false;
     }
   });
@@ -239,7 +239,6 @@ function App() {
   const cardBg = isDark
     ? 'rgba(30, 41, 59, 0.95)'
     : 'rgba(255, 255, 255, 0.95)';
-  const textPrimary = isDark ? '#f1f5f9' : '#1f2937';
   const textSecondary = isDark ? '#cbd5e1' : '#6b7280';
   const borderColor = isDark ? '#334155' : 'rgba(255, 255, 255, 0.18)';
 

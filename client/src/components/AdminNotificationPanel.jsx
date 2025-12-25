@@ -3,7 +3,7 @@ import { adminNotificationAPI } from '../../services/api';
 import { useAuth } from '../contexts/useAuth';
 
 const AdminNotificationPanel = () => {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const [users, setUsers] = useState([]);
   const [selectedUsers, setSelectedUsers] = useState([]);
   const [selectedUserObjects, setSelectedUserObjects] = useState([]);

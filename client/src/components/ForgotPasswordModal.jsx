@@ -9,7 +9,7 @@ import ModernButton from './ModernButton';
  * ForgotPasswordModal Component - Single Responsibility: Handle forgot password flow
  * Open/Closed: Can be extended with additional validation or features
  */
-const ForgotPasswordModal = ({ isOpen, onClose, onSuccess, themeColors }) => {
+const ForgotPasswordModal = ({ isOpen, onClose, onSuccess, themeColors: _themeColors }) => {
     const [email, setEmail] = useState('');
     const [error, setError] = useState('');
     const [info, setInfo] = useState('');

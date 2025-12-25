@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/useAuth';
 
 const VideoCall = ({ targetUserId, targetUserName, onClose, roomId: propRoomId = null, fromUserId: propFromUserId = null, autoJoin = false }) => {
   const { token, user } = useAuth();
-  const [socket, setSocket] = useState(null);
+  const [_socket, setSocket] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);

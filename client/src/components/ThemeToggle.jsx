@@ -2,7 +2,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { Icons } from '../utils/icons';
 
 const ThemeToggle = () => {
-    const { theme, toggleTheme, isDark } = useTheme();
+    const { theme: _theme, toggleTheme, isDark } = useTheme();
 
     return (
         <button
