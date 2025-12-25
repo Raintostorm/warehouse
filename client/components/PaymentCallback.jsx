@@ -36,6 +36,7 @@ const PaymentCallback = () => {
             setErrorMessage('Payment callback received but no payment information available');
             console.warn('PaymentCallback: No paymentId or message in URL params', { urlParams: Array.from(urlParams.entries()) });
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchPaymentDetails = async (paymentId) => {

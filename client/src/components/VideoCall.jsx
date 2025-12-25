@@ -162,6 +162,7 @@ const VideoCall = ({ targetUserId, targetUserName, onClose, roomId: propRoomId =
         newSocket.disconnect();
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, targetUserId, user.id, propRoomId, propFromUserId, autoJoin]);
 
   useEffect(() => {

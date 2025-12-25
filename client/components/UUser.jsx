@@ -20,6 +20,7 @@ const UUser = ({ userId, onUserUpdated }) => {
         if (userId) {
             loadUserData();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
 
     // Load dữ liệu user hiện tại

@@ -5,7 +5,7 @@ const AdvancedFilterPanel = ({
     filters, 
     onFiltersChange, 
     sortOptions = [],
-    onSortChange,
+    onSortChange: _onSortChange,
     onClearFilters 
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);

@@ -161,7 +161,8 @@ function App() {
         fetchCallerName();
       }
     }
-  }, [authenticated, user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated, user, isUserAuthenticated]);
 
   const handleUserCreated = () => {
     setRefreshKey(prev => prev + 1);

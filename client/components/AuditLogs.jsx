@@ -20,13 +20,14 @@ const AuditLogs = () => {
     
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [itemsPerPage] = useState(20);
 
     useEffect(() => {
         if (isAdmin) {
             fetchLogs();
         }
-    }, [isAdmin, tableName, action, actor, startDate, endDate, currentPage]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAdmin, tableName, action, actor, startDate, endDate, currentPage, itemsPerPage]);
 
     const fetchLogs = async () => {
         try {
@@ -448,7 +449,7 @@ const AuditLogs = () => {
                                 </td>
                             </tr>
                         ) : (
-                            currentItems.map((log, index) => {
+                            currentItems.map((log) => {
                                 const actionColor = getActionColor(log.action);
                                 return (
                                     <tr

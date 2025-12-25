@@ -45,6 +45,7 @@ const Payments = () => {
         if (isAdmin) {
             fetchUnpaidBills();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAdmin]);
 
     const fetchGatewayStatus = async () => {

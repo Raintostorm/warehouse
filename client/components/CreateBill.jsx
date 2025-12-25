@@ -10,9 +10,6 @@ const CreateBill = ({ onClose }) => {
     const [orders, setOrders] = useState([]);
     const [loadingOrders, setLoadingOrders] = useState(false);
     const [selectedOrderIds, setSelectedOrderIds] = useState([]);
-    const [allOrderDetails, setAllOrderDetails] = useState([]); // All products from selected orders
-    const [selectedProducts, setSelectedProducts] = useState([]); // Selected product IDs with order info
-    const [loadingData, setLoadingData] = useState(false);
     const [showPDFConfirm, setShowPDFConfirm] = useState(false);
 
     // Load orders when modal opens
@@ -20,6 +17,7 @@ const CreateBill = ({ onClose }) => {
         if (orders.length === 0) {
             fetchOrders();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
 

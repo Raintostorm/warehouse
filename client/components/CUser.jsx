@@ -43,7 +43,7 @@ const CUser = ({ onUserCreated }) => {
 
         try {
             // Don't send ID - let backend generate it automatically
-            const { id, ...userDataWithoutId } = formData;
+            const { id: _id, ...userDataWithoutId } = formData;
             const response = await userAPI.createUser(userDataWithoutId);
 
             if (response.success) {

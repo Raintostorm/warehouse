@@ -23,6 +23,7 @@ const UserRoleManager = ({ userId, userName, isOpen, onClose }) => {
             loadUserRoles();
             loadAllRoles();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [userId]);
 
     // Load roles của user

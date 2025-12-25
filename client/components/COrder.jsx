@@ -282,6 +282,7 @@ const COrder = ({ onOrderCreated }) => {
             fetchProducts();
             fetchNextOrderId();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isModalOpen]);
 
     // Fetch next order ID from backend
