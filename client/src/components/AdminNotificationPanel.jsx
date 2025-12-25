@@ -156,7 +156,7 @@ const AdminNotificationPanel = () => {
       <form onSubmit={handleSubmit}>
         {/* Send to all staff or specific users */}
         <div style={{ marginBottom: '20px' }}>
-          <label 
+          <label
             style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px', cursor: 'pointer' }}
             onClick={() => setSendToAllStaff(true)}
           >
@@ -168,7 +168,7 @@ const AdminNotificationPanel = () => {
             />
             <span>Gửi cho tất cả nhân viên (Staff)</span>
           </label>
-          <label 
+          <label
             style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
             onClick={() => setSendToAllStaff(false)}
           >
@@ -188,7 +188,7 @@ const AdminNotificationPanel = () => {
             <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>
               Chọn người nhận:
             </label>
-            
+
             {/* Selected users tags */}
             {selectedUserObjects.length > 0 && (
               <div style={{
@@ -271,7 +271,7 @@ const AdminNotificationPanel = () => {
                   }
                 }}
               />
-              
+
               {/* Dropdown with search results */}
               {showDropdown && users.length > 0 && (
                 <div
