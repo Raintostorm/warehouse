@@ -58,6 +58,21 @@ jobs:
         working-directory: ./server
         run: npm ci  # npm ci nhanh hơn và đảm bảo chính xác hơn npm install
       
+      # Bước 3.5: Create test database
+      - name: Create test database
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: postgres
+          PGPASSWORD: postgres
+        run: |
+          # Install PostgreSQL client
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          # Check if test_db exists, if not create it
+          psql -h localhost -U postgres -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'test_db'" | grep -q 1 || psql -h localhost -U postgres -d postgres -c "CREATE DATABASE test_db;"
+          echo "✅ Test database 'test_db' is ready"
+      
       # Bước 4: Chạy linter (nếu có)
       - name: Run server linter
         working-directory: ./server
