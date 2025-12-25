@@ -70,7 +70,7 @@ const UserProfile = () => {
 
     if (!user) return null;
 
-    const userId = user.id || user.Id;
+    const _userId = user.id || user.Id;
     const userEmail = user.email || user.Email;
     const userFullname = user.fullname || user.Fullname || 'N/A';
     const userNumber = user.number || user.Number || 'N/A';

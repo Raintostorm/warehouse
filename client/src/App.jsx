@@ -79,7 +79,7 @@ function App() {
       const hasToken = !!localStorage.getItem('token');
       const hasUser = !!localStorage.getItem('user');
       return hasToken && hasUser;
-    } catch (e) {
+    } catch (_e) {
       return false;
     }
   });

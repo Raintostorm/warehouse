@@ -750,7 +750,7 @@ const UserL = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {currentUsers.map((user, index) => (
+                                    {currentUsers.map((user) => (
                                         <tr
                                             key={user.id}
                                             style={{

@@ -7,7 +7,7 @@ import { useToast } from '../src/contexts/ToastContext';
 const Reports = () => {
     const { hasRole } = useRole();
     const isAdmin = hasRole('admin');
-    const { success: showSuccess, error: showError } = useToast();
+    const { success: _showSuccess, error: showError } = useToast();
     const [loading, setLoading] = useState(false);
     const [reportType, setReportType] = useState('revenue');
     const [format, setFormat] = useState('pdf');

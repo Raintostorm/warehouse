@@ -11,6 +11,7 @@ const VideoCallList = ({ joinFromLink = null }) => {
 
   useEffect(() => {
     loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle join from email link

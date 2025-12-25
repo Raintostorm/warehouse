@@ -5,7 +5,7 @@ const AdvancedFilterPanel = ({
     filters, 
     onFiltersChange, 
     sortOptions = [],
-    onSortChange: _onSortChange,
+    onSortChange: _onSortChange, // eslint-disable-line no-unused-vars
     onClearFilters 
 }) => {
     const [isExpanded, setIsExpanded] = useState(false);

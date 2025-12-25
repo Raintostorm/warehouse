@@ -26,7 +26,7 @@ const Payments = () => {
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [itemsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
 
     // Payment form state
@@ -235,7 +235,6 @@ const Payments = () => {
                         fetchUnpaidBills(); // Refresh unpaid bills list
                     }
                     setShowPaymentModal(false);
-                    setSelectedOrderId('');
                     // Reset form
                     setPaymentForm({
                         billId: '',
