@@ -163,7 +163,6 @@ function App() {
         fetchCallerName();
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authenticated, user, isUserAuthenticated]);
 
   const handleUserCreated = () => {

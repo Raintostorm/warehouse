@@ -3,7 +3,7 @@ import { inventoryAPI } from '../services/api';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 
-const StockHistory = ({ products, warehouses, onRefresh }) => {
+const StockHistory = ({ products, warehouses }) => {
     const { error: showError } = useToast();
     const [history, setHistory] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -15,7 +15,7 @@ const StockHistory = ({ products, warehouses, onRefresh }) => {
         endDate: ''
     });
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [itemsPerPage] = useState(20);
 
     useEffect(() => {
         fetchHistory();
