@@ -123,8 +123,8 @@ const ImageGallery = ({
             
             // Remove ALL occurrences of 'uploads/' from anywhere in the path
             // This ensures we never have /uploads/uploads/
-            path = path.replace(/uploads[\/\\]/gi, '');
-            path = path.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes after removal
+            path = path.replace(/uploads[/\\]/gi, '');
+            path = path.replace(/^[/\\]+|[/\\]+$/g, ''); // Remove leading/trailing slashes after removal
             
             // Now add uploads/ only once at the beginning
             const normalizedPath = `uploads/${path}`;

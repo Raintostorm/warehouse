@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { orderAPI, supplierAPI } from '../services/api';
+import { orderAPI, supplierAPI, billAPI, paymentAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
@@ -60,101 +60,102 @@ const OrderL = () => {
         setConfirmModal({ isOpen: true, id });
     };
 
-    const handleShowBills = async (orderId) => {
-        try {
-            let bills = [];
-            if (orderId) {
-                // Show bills for specific order
-                const response = await billAPI.getBillsByOrderId(orderId);
-                if (response.success) {
-                    bills = response.data || [];
-                } else {
-                    showError('Failed to fetch bills: ' + response.message);
-                    return;
-                }
-            } else {
-                // Show all bills
-                const response = await billAPI.getAllBills();
-                if (response.success) {
-                    bills = response.data || [];
-                } else {
-                    showError('Failed to fetch bills: ' + response.message);
-                    return;
-                }
-            }
+    // Unused function - kept for future use
+    // const handleShowBills = async (orderId) => {
+    //     try {
+    //         let bills = [];
+    //         if (orderId) {
+    //             // Show bills for specific order
+    //             const response = await billAPI.getBillsByOrderId(orderId);
+    //             if (response.success) {
+    //                 bills = response.data || [];
+    //             } else {
+    //                 showError('Failed to fetch bills: ' + response.message);
+    //                 return;
+    //             }
+    //         } else {
+    //             // Show all bills
+    //             const response = await billAPI.getAllBills();
+    //             if (response.success) {
+    //                 bills = response.data || [];
+    //             } else {
+    //                 showError('Failed to fetch bills: ' + response.message);
+    //                 return;
+    //             }
+    //         }
 
-            // Fetch all payments to check bill payment status
-            const paymentsResponse = await paymentAPI.getAllPayments();
-            const allPayments = paymentsResponse.success ? (paymentsResponse.data || []) : [];
+    //         // Fetch all payments to check bill payment status
+    //         const paymentsResponse = await paymentAPI.getAllPayments();
+    //         const allPayments = paymentsResponse.success ? (paymentsResponse.data || []) : [];
 
-            // Categorize bills into paid and unpaid
-            const paidBills = [];
-            const unpaidBills = [];
+    //         // Categorize bills into paid and unpaid
+    //         const paidBills = [];
+    //         const unpaidBills = [];
 
-            for (const bill of bills) {
-                // Find payments by bill_id first, then fallback to order_id if bill_id is null
-                let billPayments = allPayments.filter(p => 
-                    (p.bill_id === bill.id || p.billId === bill.id) && 
-                    (p.bill_id || p.billId) // Only if bill_id exists
-                );
+    //         for (const bill of bills) {
+    //             // Find payments by bill_id first, then fallback to order_id if bill_id is null
+    //             let billPayments = allPayments.filter(p => 
+    //                 (p.bill_id === bill.id || p.billId === bill.id) && 
+    //                 (p.bill_id || p.billId) // Only if bill_id exists
+    //             );
                 
-                // If no payments found by bill_id, try to find by order_id
-                if (billPayments.length === 0) {
-                    const billOrderId = bill.order_id || bill.orderId;
-                    billPayments = allPayments.filter(p => 
-                        (p.order_id === billOrderId || p.orderId === billOrderId)
-                    );
-                }
+    //             // If no payments found by bill_id, try to find by order_id
+    //             if (billPayments.length === 0) {
+    //                 const billOrderId = bill.order_id || bill.orderId;
+    //                 billPayments = allPayments.filter(p => 
+    //                     (p.order_id === billOrderId || p.orderId === billOrderId)
+    //                 );
+    //             }
                 
-                const totalPaid = billPayments
-                    .filter(p => {
-                        const status = p.payment_status || p.paymentStatus;
-                        return status === 'completed';
-                    })
-                    .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    //             const totalPaid = billPayments
+    //                 .filter(p => {
+    //                     const status = p.payment_status || p.paymentStatus;
+    //                     return status === 'completed';
+    //                 })
+    //                 .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
                 
-                const billTotal = parseFloat(bill.total_amount || bill.totalAmount || 0);
-                const isPaid = billTotal > 0 && totalPaid >= billTotal;
+    //             const billTotal = parseFloat(bill.total_amount || bill.totalAmount || 0);
+    //             const isPaid = billTotal > 0 && totalPaid >= billTotal;
 
-                // Debug logging
-                console.log('Bill payment check:', {
-                    billId: bill.id,
-                    orderId: bill.order_id || bill.orderId,
-                    billTotal,
-                    totalPaid,
-                    isPaid,
-                    billStatus: bill.status,
-                    paymentsFound: billPayments.length,
-                    payments: billPayments.map(p => ({ 
-                        id: p.id, 
-                        amount: p.amount, 
-                        status: p.payment_status || p.paymentStatus, 
-                        bill_id: p.bill_id || p.billId,
-                        order_id: p.order_id || p.orderId
-                    }))
-                });
+    //             // Debug logging
+    //             console.log('Bill payment check:', {
+    //                 billId: bill.id,
+    //                 orderId: bill.order_id || bill.orderId,
+    //                 billTotal,
+    //                 totalPaid,
+    //                 isPaid,
+    //                 billStatus: bill.status,
+    //                 paymentsFound: billPayments.length,
+    //                 payments: billPayments.map(p => ({ 
+    //                     id: p.id, 
+    //                     amount: p.amount, 
+    //                     status: p.payment_status || p.paymentStatus, 
+    //                     bill_id: p.bill_id || p.billId,
+    //                     order_id: p.order_id || p.orderId
+    //                 }))
+    //             });
 
-                if (isPaid || bill.status === 'paid') {
-                    paidBills.push(bill);
-                } else if (bill.status !== 'cancelled') {
-                    unpaidBills.push(bill);
-                }
-            }
+    //             if (isPaid || bill.status === 'paid') {
+    //                 paidBills.push(bill);
+    //             } else if (bill.status !== 'cancelled') {
+    //                 unpaidBills.push(bill);
+    //             }
+    //         }
 
-            setShowBillsModal({ 
-                isOpen: true, 
-                orderId: orderId || 'All Orders', 
-                bills: bills,
-                paidBills: paidBills,
-                unpaidBills: unpaidBills
-            });
-            // Reset toggle states when opening modal
-            setShowPaidBills(true);
-            setShowUnpaidBills(true);
-        } catch (err) {
-            showError('Failed to fetch bills: ' + (err.response?.data?.error || err.message));
-        }
-    };
+    //         setShowBillsModal({ 
+    //             isOpen: true, 
+    //             orderId: orderId || 'All Orders', 
+    //             bills: bills,
+    //             paidBills: paidBills,
+    //             unpaidBills: unpaidBills
+    //         });
+    //         // Reset toggle states when opening modal
+    //         setShowPaidBills(true);
+    //         setShowUnpaidBills(true);
+    //     } catch (err) {
+    //         showError('Failed to fetch bills: ' + (err.response?.data?.error || err.message));
+    //     }
+    // };
 
     const confirmDelete = async () => {
         const id = confirmModal.id;

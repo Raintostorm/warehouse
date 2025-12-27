@@ -13,7 +13,7 @@ const InventoryManagement = () => {
     const { hasRole } = useRole();
     const isAdmin = hasRole('admin');
     const isManager = hasRole('manager');
-    const { success: showSuccess, error: showError } = useToast();
+    const { error: showError } = useToast();
     
     const [activeTab, setActiveTab] = useState('summary');
     const [stockSummary, setStockSummary] = useState([]);
@@ -251,7 +251,6 @@ const InventoryManagement = () => {
                 {activeTab === 'summary' && (
                     <StockSummaryView 
                         stockSummary={stockSummary}
-                        products={products}
                         warehouses={warehouses}
                         onAdjustStock={handleAdjustStock}
                         isAdmin={isAdmin}
@@ -306,11 +305,11 @@ const InventoryManagement = () => {
 };
 
 // Stock Summary View Component
-const StockSummaryView = ({ stockSummary, products, warehouses, onAdjustStock, isAdmin, isManager }) => {
+const StockSummaryView = ({ stockSummary, warehouses, onAdjustStock, isAdmin, isManager }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterWarehouse, setFilterWarehouse] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(20);
+    const [itemsPerPage] = useState(20);
 
     const filteredSummary = stockSummary.filter(item => {
         const matchesSearch = !searchTerm || 

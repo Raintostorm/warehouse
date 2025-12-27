@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }) => {
             }
             return false;
         }
-    }, [isTokenExpired, logout]);
+    }, [logout]);
 
     useEffect(() => {
         // Check if user is already logged in
