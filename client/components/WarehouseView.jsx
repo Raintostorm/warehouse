@@ -16,6 +16,7 @@ const WarehouseView = ({ warehouseId, onClose }) => {
         if (warehouseId) {
             fetchWarehouseData();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [warehouseId]);
 
     const fetchWarehouseData = async () => {

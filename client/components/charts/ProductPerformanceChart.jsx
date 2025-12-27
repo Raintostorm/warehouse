@@ -16,6 +16,7 @@ const ProductPerformanceChart = ({ startDate, endDate, limit = 10, sortBy = 'rev
 
     useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [startDate, endDate, limit, sortBy]);
 
     const fetchData = async () => {

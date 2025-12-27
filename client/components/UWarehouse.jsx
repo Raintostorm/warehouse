@@ -25,6 +25,7 @@ const UWarehouse = ({ warehouseId, onWarehouseUpdated, onClose }) => {
         if (warehouseId) {
             fetchWarehouse();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [warehouseId]);
 
     const fetchWarehouse = async () => {

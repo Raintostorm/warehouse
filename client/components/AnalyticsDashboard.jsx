@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../src/contexts/ThemeContext';
-import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 import DateRangePicker from './DateRangePicker';
 import ChartFilters from './ChartFilters';

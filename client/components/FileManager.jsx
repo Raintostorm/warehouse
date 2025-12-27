@@ -121,8 +121,8 @@ const FileManager = ({
             let path = file.file_path;
             
             // Remove absolute path prefixes (Windows: C:\, D:\, etc. or Unix: /)
-            path = path.replace(/^[A-Z]:[\/\\]/, ''); // Remove Windows drive letter
-            path = path.replace(/^[\/\\]+/, ''); // Remove leading slashes
+            path = path.replace(/^[A-Z]:[/\\]/, ''); // Remove Windows drive letter
+            path = path.replace(/^[/\\]+/, ''); // Remove leading slashes
             path = path.replace(/^\.\//, ''); // Remove ./
             
             // Replace backslashes with forward slashes for web compatibility
@@ -130,8 +130,8 @@ const FileManager = ({
             
             // Remove ALL occurrences of 'uploads/' from anywhere in the path
             // This ensures we never have /uploads/uploads/
-            path = path.replace(/uploads[\/\\]/gi, '');
-            path = path.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes after removal
+            path = path.replace(/uploads[/\\]/gi, '');
+            path = path.replace(/^[/\\]+|[/\\]+$/g, ''); // Remove leading/trailing slashes after removal
             
             // Now add uploads/ only once at the beginning
             const normalizedPath = `uploads/${path}`;

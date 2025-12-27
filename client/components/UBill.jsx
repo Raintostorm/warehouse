@@ -15,6 +15,7 @@ const UBill = ({ billId, onBillUpdated, onClose }) => {
 
     useEffect(() => {
         fetchBill();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [billId]);
 
     const fetchBill = async () => {

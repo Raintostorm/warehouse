@@ -16,6 +16,7 @@ const SalesTrendChart = ({ startDate, endDate, period = 'month' }) => {
 
     useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [startDate, endDate, period]);
 
     const fetchData = async () => {

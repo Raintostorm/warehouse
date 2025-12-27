@@ -16,6 +16,7 @@ const RevenueChart = ({ period = 'month', startDate = null, endDate = null }) =>
 
     useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [period, startDate, endDate]);
 
     const fetchData = async () => {

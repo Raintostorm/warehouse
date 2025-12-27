@@ -16,6 +16,7 @@ const InventoryTurnoverChart = ({ days = 30 }) => {
 
     useEffect(() => {
         fetchData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [days]);
 
     const fetchData = async () => {

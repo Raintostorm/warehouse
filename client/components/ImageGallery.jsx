@@ -101,8 +101,8 @@ const ImageGallery = ({
             url = url.replace(/^\/+/, '');
             
             // Remove ALL occurrences of 'uploads/' from anywhere in the path
-            url = url.replace(/uploads[\/\\]/gi, '');
-            url = url.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes
+            url = url.replace(/uploads[/\\]/gi, '');
+            url = url.replace(/^[/\\]+|[/\\]+$/g, ''); // Remove leading/trailing slashes
             
             // Now add /uploads/ only once at the beginning
             const normalizedUrl = `/uploads/${url}`;
@@ -114,8 +114,8 @@ const ImageGallery = ({
             let path = image.file_path;
             
             // Remove absolute path prefixes (Windows: C:\, D:\, etc. or Unix: /)
-            path = path.replace(/^[A-Z]:[\/\\]/, ''); // Remove Windows drive letter
-            path = path.replace(/^[\/\\]+/, ''); // Remove leading slashes
+            path = path.replace(/^[A-Z]:[/\\]/, ''); // Remove Windows drive letter
+            path = path.replace(/^[/\\]+/, ''); // Remove leading slashes
             path = path.replace(/^\.\//, ''); // Remove ./
             
             // Replace backslashes with forward slashes for web compatibility
