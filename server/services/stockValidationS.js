@@ -157,7 +157,14 @@ const StockValidationS = {
                 }
 
                 // Get total stock across all warehouses (pass null as warehouseId)
-                const totalStock = await InventoryS.getCurrentStock(productId, null);
+                let totalStock = 0;
+                try {
+                    totalStock = await InventoryS.getCurrentStock(productId, null);
+                } catch (error) {
+                    // If product doesn't exist or error getting stock, treat as 0 stock
+                    logger.warn('Error getting stock for product in validation', { productId, error: error.message });
+                    totalStock = 0;
+                }
 
                 // Get product info for better error messages
                 let productName = productId;
