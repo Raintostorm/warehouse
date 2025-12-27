@@ -26,6 +26,7 @@ const InventoryManagement = () => {
 
     useEffect(() => {
         fetchInitialData();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchInitialData = async () => {

@@ -19,6 +19,7 @@ const StockHistory = ({ products, warehouses, onRefresh }) => {
 
     useEffect(() => {
         fetchHistory();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filters]);
 
     const fetchHistory = async () => {

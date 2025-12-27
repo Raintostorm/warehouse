@@ -130,16 +130,12 @@ const CreateBill = ({ onClose }) => {
                     return sum + orderTotal;
                 }, 0);
                 
-                try {
-                    await billAPI.createBill({
-                        orderIds: orderIds, // Pass array of order IDs
-                        totalAmount: totalAmount,
-                        status: 'pending'
-                    });
-                    showSuccess(`Đã tạo hóa đơn cho ${selectedOrders.length} đơn hàng thành công!`);
-                } catch (err) {
-                    throw err;
-                }
+                await billAPI.createBill({
+                    orderIds: orderIds, // Pass array of order IDs
+                    totalAmount: totalAmount,
+                    status: 'pending'
+                });
+                showSuccess(`Đã tạo hóa đơn cho ${selectedOrders.length} đơn hàng thành công!`);
             }
 
             // Clear selected orders

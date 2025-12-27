@@ -25,6 +25,7 @@ const ImageGallery = ({
         if (entityType && entityId) {
             fetchImages();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entityType, entityId]);
 
     const fetchImages = async () => {

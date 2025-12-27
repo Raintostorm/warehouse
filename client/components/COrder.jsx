@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, supplierAPI } from '../services/api';
+import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, supplierAPI, productDetailAPI } from '../services/api';
 import api from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useAuth } from '../src/contexts/useAuth';

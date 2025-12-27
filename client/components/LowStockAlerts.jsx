@@ -18,6 +18,7 @@ const LowStockAlerts = ({ products, warehouses, onRefresh }) => {
 
     useEffect(() => {
         fetchAlerts();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [showResolved]);
 
     const fetchAlerts = async () => {

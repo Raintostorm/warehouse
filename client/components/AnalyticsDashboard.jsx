@@ -15,7 +15,6 @@ import SupplierAnalyticsChart from './charts/SupplierAnalyticsChart';
 
 const AnalyticsDashboard = () => {
     const { isDark } = useTheme();
-    const { error: showError } = useToast();
     const [error, setError] = useState(null);
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);

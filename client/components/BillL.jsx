@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { billAPI, paymentAPI } from '../services/api';
+import { billAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
@@ -47,7 +47,7 @@ const BillL = () => {
                         if (ordersResponse.success) {
                             ordersMap[bill.id] = ordersResponse.data || [];
                         }
-                    } catch (err) {
+                    } catch {
                         // If bill_orders doesn't exist or error, use order_id as fallback
                         if (bill.order_id || bill.orderId) {
                             ordersMap[bill.id] = [{ id: bill.order_id || bill.orderId }];
@@ -103,8 +103,6 @@ const BillL = () => {
 
     // Categorize bills
     const categorizedBills = useMemo(() => {
-        const allPayments = []; // Will be populated when needed
-        
         return bills.map(bill => {
             // For now, use bill status directly
             // In a real implementation, you might want to check payments
@@ -141,7 +139,7 @@ const BillL = () => {
         }
 
         return filtered;
-    }, [categorizedBills, filterStatus, searchTerm]);
+    }, [categorizedBills, filterStatus, searchTerm, billOrders]);
 
     const paginatedBills = useMemo(() => {
         const startIndex = (currentPage - 1) * itemsPerPage;

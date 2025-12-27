@@ -29,6 +29,7 @@ const FileManager = ({
         if (entityType && entityId) {
             fetchFiles();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [entityType, entityId]);
 
     const fetchFiles = async () => {
@@ -47,7 +48,7 @@ const FileManager = ({
         }
     };
 
-    const handleUploadSuccess = (uploadedFiles) => {
+    const handleUploadSuccess = () => {
         fetchFiles();
         if (onRefresh) onRefresh();
     };
@@ -107,8 +108,8 @@ const FileManager = ({
             url = url.replace(/^\/+/, '');
             
             // Remove ALL occurrences of 'uploads/' from anywhere in the path
-            url = url.replace(/uploads[\/\\]/gi, '');
-            url = url.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes
+            url = url.replace(/uploads[/\\]/gi, '');
+            url = url.replace(/^[/\\]+|[/\\]+$/g, ''); // Remove leading/trailing slashes
             
             // Now add /uploads/ only once at the beginning
             const normalizedUrl = `/uploads/${url}`;

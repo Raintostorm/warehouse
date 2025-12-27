@@ -19,6 +19,7 @@ const StockTransfers = ({ products, warehouses, onRefresh }) => {
 
     useEffect(() => {
         fetchTransfers();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchTransfers = async () => {

@@ -13,6 +13,7 @@ const SupplierImportHistory = ({ supplierId, supplierName, onClose }) => {
         if (supplierId) {
             fetchHistory();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [supplierId]);
 
     const fetchHistory = async () => {

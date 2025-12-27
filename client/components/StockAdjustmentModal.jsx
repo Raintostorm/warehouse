@@ -20,6 +20,7 @@ const StockAdjustmentModal = ({ isOpen, onClose, productId, warehouseId, product
             setFormData({ newQuantity: '', notes: '' });
             setErrors({});
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, productId, warehouseId]);
 
     const fetchCurrentStock = async () => {

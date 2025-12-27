@@ -30,6 +30,7 @@ const StockTransferModal = ({ isOpen, onClose, transferId = null, products, ware
                 setErrors({});
             }
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, transferId]);
 
     const fetchTransfer = async () => {
