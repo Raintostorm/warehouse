@@ -1,8 +1,10 @@
 const NotificationsM = require('../models/notificationsM');
 const ProductsM = require('../models/productsM');
 const ProductDetailsM = require('../models/productDetailsM');
-const { sendLowStockAlertEmail, sendNewOrderEmail } = require('../utils/emailService');
-const { getAdminEmails } = require('../utils/getAdminEmails');
+const { sendLowStockAlertEmail } = require('../utils/emailService');
+// Email notification for new orders disabled
+// const { sendNewOrderEmail } = require('../utils/emailService');
+// const { getAdminEmails } = require('../utils/getAdminEmails');
 
 const NotificationsS = {
     // Create notification
@@ -31,21 +33,21 @@ const NotificationsS = {
             is_read: false
         });
 
-        // Send email to admins (async, don't wait)
-        getAdminEmails()
-            .then(adminEmails => {
-                if (adminEmails.length > 0) {
-                    return sendNewOrderEmail(adminEmails, {
-                        orderId: order.id,
-                        orderType: order.type,
-                        customerName: order.customer_name,
-                        total: order.total
-                    });
-                }
-            })
-            .catch(error => {
-                console.error('Failed to send new order email:', error);
-            });
+        // Email notification disabled - no longer sending emails when creating orders
+        // getAdminEmails()
+        //     .then(adminEmails => {
+        //         if (adminEmails.length > 0) {
+        //             return sendNewOrderEmail(adminEmails, {
+        //                 orderId: order.id,
+        //                 orderType: order.type,
+        //                 customerName: order.customer_name,
+        //                 total: order.total
+        //             });
+        //         }
+        //     })
+        //     .catch(error => {
+        //         console.error('Failed to send new order email:', error);
+        //     });
 
         return notification;
     },

@@ -12,9 +12,19 @@ const getActor = (reqOrActor) => {
     return 'System';
 };
 
+// Counter to ensure unique IDs even when multiple files uploaded simultaneously
+let fileIdCounter = 0;
+
 async function generateFileId() {
     const timestamp = Date.now();
-    return `FILE${timestamp}`;
+    const random = Math.round(Math.random() * 999999); // 6 digits (0-999999)
+    fileIdCounter = (fileIdCounter + 1) % 1000; // 3 digits counter (0-999)
+    // Combine: timestamp (13) + counter (3) + random (6) = 22 digits
+    // Use base36 encoding to make it shorter: ~14 chars
+    // Total: FILE (4) + base36 (~14) = ~18 chars - fits in VARCHAR(20)
+    const combined = `${timestamp}${String(fileIdCounter).padStart(3, '0')}${String(random).padStart(6, '0')}`;
+    const base36 = parseInt(combined).toString(36).toUpperCase();
+    return `FILE${base36}`;
 }
 
 const FileUploadS = {
@@ -22,35 +32,95 @@ const FileUploadS = {
      * Upload file and save record
      */
     uploadFile: async (file, entityType, entityId, uploadType = null, actor = null) => {
+        let uploadResult = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+
         try {
-            // Upload file to storage
-            const uploadResult = await uploadFileToStorage(file, entityType, entityId, uploadType);
-
-            // Generate file ID
-            const fileId = generateFileId();
-
-            // Save file record
-            const fileData = {
-                id: fileId,
+            logger.info('Starting file upload', { 
+                originalName: file.originalname, 
+                mimetype: file.mimetype,
+                size: file.size,
                 entityType,
-                entityId,
-                fileName: uploadResult.fileName,
-                originalName: uploadResult.originalName,
-                filePath: uploadResult.filePath,
-                fileUrl: uploadResult.fileUrl,
-                fileType: uploadResult.fileType,
-                mimeType: uploadResult.mimeType,
-                fileSize: uploadResult.fileSize,
-                isPrimary: false,
-                uploadType: uploadType || `${entityType}_${uploadResult.fileType}`,
-                metadata: generateFileMetadata(file),
-                actor: actor || getActor()
-            };
+                entityId
+            });
+            
+            // Upload file to storage first
+            uploadResult = await uploadFileToStorage(file, entityType, entityId, uploadType);
+            logger.info('File uploaded to storage', { 
+                filePath: uploadResult.filePath, 
+                fileUrl: uploadResult.fileUrl 
+            });
 
-            const fileRecord = await FileUploadsM.create(fileData);
-            return fileRecord;
+            // Try to save file record with retry logic for ID conflicts
+            while (retryCount < maxRetries) {
+                try {
+                    // Generate file ID
+                    const fileId = await generateFileId();
+
+                    // Save file record
+                    const fileData = {
+                        id: fileId,
+                        entityType,
+                        entityId,
+                        fileName: uploadResult.fileName,
+                        originalName: uploadResult.originalName,
+                        filePath: uploadResult.filePath,
+                        fileUrl: uploadResult.fileUrl,
+                        fileType: uploadResult.fileType,
+                        mimeType: uploadResult.mimeType,
+                        fileSize: uploadResult.fileSize,
+                        isPrimary: false,
+                        uploadType: uploadType || `${entityType}_${uploadResult.fileType}`,
+                        metadata: generateFileMetadata(file),
+                        actor: actor || getActor()
+                    };
+
+                    logger.info('Saving file record to database', { fileId, retryCount, fileData: { ...fileData, metadata: '...' } });
+                    const fileRecord = await FileUploadsM.create(fileData);
+                    logger.info('File record saved successfully', { fileId, fileRecordId: fileRecord.id });
+                    
+                    return fileRecord;
+                } catch (dbError) {
+                    // Check if it's a unique constraint violation (duplicate key)
+                    if (dbError.message && dbError.message.includes('unique constraint') && retryCount < maxRetries - 1) {
+                        retryCount++;
+                        logger.warn('File ID conflict detected, retrying with new ID', { 
+                            retryCount, 
+                            error: dbError.message 
+                        });
+                        // Wait a bit before retry to ensure different timestamp
+                        await new Promise(resolve => setTimeout(resolve, 10));
+                        continue;
+                    }
+                    // If not a conflict or max retries reached, throw the error
+                    throw dbError;
+                }
+            }
         } catch (error) {
-            logger.error('Error in file upload service', { error: error.message, entityType, entityId });
+            // If file was uploaded to storage but database save failed, try to clean up
+            if (uploadResult && uploadResult.filePath) {
+                try {
+                    const { deleteFile } = require('../utils/fileUpload');
+                    await deleteFile(uploadResult.filePath);
+                    logger.info('Cleaned up uploaded file after database error', { filePath: uploadResult.filePath });
+                } catch (cleanupError) {
+                    logger.error('Failed to cleanup file after error', { 
+                        cleanupError: cleanupError.message,
+                        filePath: uploadResult.filePath 
+                    });
+                }
+            }
+            
+            logger.error('Error in file upload service', { 
+                error: error.message, 
+                stack: error.stack,
+                originalName: file?.originalname,
+                mimetype: file?.mimetype,
+                entityType, 
+                entityId,
+                retryCount
+            });
             throw error;
         }
     },

@@ -92,15 +92,52 @@ const FileManager = ({
     const documents = files.filter(f => f.file_type !== 'image' && !f.mime_type?.startsWith('image/'));
 
     const getFileUrl = (file) => {
+        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+        
+        // Prefer file_url if available (it's already properly formatted)
         if (file.file_url) {
             if (file.file_url.startsWith('http://') || file.file_url.startsWith('https://')) {
                 return file.file_url;
             }
-            const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
-            return `${apiUrl}${file.file_url}`;
+            
+            // Normalize file_url to remove any duplicate /uploads/
+            let url = file.file_url;
+            
+            // Remove leading slash if exists
+            url = url.replace(/^\/+/, '');
+            
+            // Remove ALL occurrences of 'uploads/' from anywhere in the path
+            url = url.replace(/uploads[\/\\]/gi, '');
+            url = url.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes
+            
+            // Now add /uploads/ only once at the beginning
+            const normalizedUrl = `/uploads/${url}`;
+            return `${apiUrl}${normalizedUrl}`;
         }
-        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
-        return `${apiUrl}/uploads/${file.file_path}`;
+        
+        // Fallback to file_path - normalize it
+        if (file.file_path) {
+            let path = file.file_path;
+            
+            // Remove absolute path prefixes (Windows: C:\, D:\, etc. or Unix: /)
+            path = path.replace(/^[A-Z]:[\/\\]/, ''); // Remove Windows drive letter
+            path = path.replace(/^[\/\\]+/, ''); // Remove leading slashes
+            path = path.replace(/^\.\//, ''); // Remove ./
+            
+            // Replace backslashes with forward slashes for web compatibility
+            path = path.replace(/\\/g, '/');
+            
+            // Remove ALL occurrences of 'uploads/' from anywhere in the path
+            // This ensures we never have /uploads/uploads/
+            path = path.replace(/uploads[\/\\]/gi, '');
+            path = path.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes after removal
+            
+            // Now add uploads/ only once at the beginning
+            const normalizedPath = `uploads/${path}`;
+            return `${apiUrl}/${normalizedPath}`;
+        }
+        
+        return '';
     };
 
     const formatFileSize = (bytes) => {

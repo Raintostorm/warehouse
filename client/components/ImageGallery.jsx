@@ -84,18 +84,53 @@ const ImageGallery = ({
     };
 
     const getImageUrl = (image) => {
+        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
+        
+        // Prefer file_url if available (it's already properly formatted)
         if (image.file_url) {
             // If it's a full URL, use it directly
             if (image.file_url.startsWith('http://') || image.file_url.startsWith('https://')) {
                 return image.file_url;
             }
-            // If it's a relative path, prepend API URL
-            const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
-            return `${apiUrl}${image.file_url}`;
+            
+            // Normalize file_url to remove any duplicate /uploads/
+            let url = image.file_url;
+            
+            // Remove leading slash if exists
+            url = url.replace(/^\/+/, '');
+            
+            // Remove ALL occurrences of 'uploads/' from anywhere in the path
+            url = url.replace(/uploads[\/\\]/gi, '');
+            url = url.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes
+            
+            // Now add /uploads/ only once at the beginning
+            const normalizedUrl = `/uploads/${url}`;
+            return `${apiUrl}${normalizedUrl}`;
         }
-        // Fallback to file_path
-        const apiUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:3000';
-        return `${apiUrl}/uploads/${image.file_path}`;
+        
+        // Fallback to file_path - normalize it
+        if (image.file_path) {
+            let path = image.file_path;
+            
+            // Remove absolute path prefixes (Windows: C:\, D:\, etc. or Unix: /)
+            path = path.replace(/^[A-Z]:[\/\\]/, ''); // Remove Windows drive letter
+            path = path.replace(/^[\/\\]+/, ''); // Remove leading slashes
+            path = path.replace(/^\.\//, ''); // Remove ./
+            
+            // Replace backslashes with forward slashes for web compatibility
+            path = path.replace(/\\/g, '/');
+            
+            // Remove ALL occurrences of 'uploads/' from anywhere in the path
+            // This ensures we never have /uploads/uploads/
+            path = path.replace(/uploads[\/\\]/gi, '');
+            path = path.replace(/^[\/\\]+|[\/\\]+$/g, ''); // Remove leading/trailing slashes after removal
+            
+            // Now add uploads/ only once at the beginning
+            const normalizedPath = `uploads/${path}`;
+            return `${apiUrl}/${normalizedPath}`;
+        }
+        
+        return '';
     };
 
     if (loading) {
@@ -158,6 +193,7 @@ const ImageGallery = ({
                                 display: 'block'
                             }}
                             onError={(e) => {
+                                console.error('Failed to load image:', getImageUrl(image), image);
                                 e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="200" height="200"%3E%3Crect fill="%23f3f4f6" width="200" height="200"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="14" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage%3C/text%3E%3C/svg%3E';
                             }}
                         />
@@ -266,35 +302,64 @@ const ImageGallery = ({
                     }}
                     onClick={() => setSelectedImage(null)}
                 >
-                    <div style={{ position: 'relative', maxWidth: '90%', maxHeight: '90%' }}>
+                    <div 
+                        style={{ 
+                            position: 'relative', 
+                            maxWidth: '90%', 
+                            maxHeight: '90%',
+                            display: 'flex',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         <img 
                             src={getImageUrl(selectedImage)}
                             alt={selectedImage.original_name || selectedImage.file_name}
                             style={{
                                 maxWidth: '100%',
                                 maxHeight: '90vh',
-                                borderRadius: '8px'
+                                borderRadius: '8px',
+                                objectFit: 'contain'
+                            }}
+                            onError={(e) => {
+                                console.error('Failed to load image:', getImageUrl(selectedImage));
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="400"%3E%3Crect fill="%23f3f4f6" width="400" height="400"/%3E%3Ctext fill="%239ca3af" font-family="sans-serif" font-size="16" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImage không tải được%3C/text%3E%3C/svg%3E';
                             }}
                         />
                         <button
-                            onClick={() => setSelectedImage(null)}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedImage(null);
+                            }}
                             style={{
                                 position: 'absolute',
-                                top: '16px',
-                                right: '16px',
-                                background: 'rgba(255, 255, 255, 0.9)',
+                                top: '20px',
+                                right: '20px',
+                                background: 'rgba(255, 255, 255, 0.95)',
                                 border: 'none',
                                 borderRadius: '50%',
-                                width: '40px',
-                                height: '40px',
+                                width: '44px',
+                                height: '44px',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 cursor: 'pointer',
-                                fontSize: '20px'
+                                fontSize: '20px',
+                                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+                                transition: 'all 0.2s',
+                                zIndex: 10
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(239, 68, 68, 0.95)';
+                                e.currentTarget.style.transform = 'scale(1.1)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.95)';
+                                e.currentTarget.style.transform = 'scale(1)';
                             }}
                         >
-                            <Icons.X size={24} />
+                            <Icons.X size={24} color="#1f2937" />
                         </button>
                     </div>
                 </div>

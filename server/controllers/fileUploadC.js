@@ -51,24 +51,60 @@ const FileUploadC = {
 
             const actorInfo = getActor(req);
             const fileRecords = [];
+            const errors = [];
 
             for (const file of files) {
                 try {
+                    logger.info('Uploading file', { 
+                        filename: file.originalname, 
+                        mimetype: file.mimetype, 
+                        size: file.size,
+                        entityType,
+                        entityId
+                    });
                     const fileRecord = await FileUploadS.uploadFile(file, entityType, entityId, uploadType, actorInfo);
                     fileRecords.push(fileRecord);
+                    logger.info('File uploaded successfully', { filename: file.originalname, fileId: fileRecord.id });
                 } catch (fileError) {
-                    logger.error('Error uploading individual file', { error: fileError.message, filename: file.originalname });
+                    const errorMsg = fileError.message || 'Unknown error';
+                    logger.error('Error uploading individual file', { 
+                        error: errorMsg, 
+                        stack: fileError.stack,
+                        filename: file.originalname,
+                        mimetype: file.mimetype,
+                        size: file.size,
+                        entityType,
+                        entityId
+                    });
+                    errors.push({ filename: file.originalname, error: errorMsg });
                     // Continue with other files
                 }
             }
 
             if (fileRecords.length === 0) {
-                return sendError(res, new Error('Failed to upload any files'), 'Upload failed');
+                const errorMessage = errors.length > 0 
+                    ? `Failed to upload any files. Errors: ${errors.map(e => `${e.filename}: ${e.error}`).join('; ')}`
+                    : 'Failed to upload any files';
+                logger.error('All files failed to upload', { errors, filesCount: files.length });
+                return sendError(res, new Error(errorMessage), 'Upload failed');
             }
 
-            return sendSuccess(res, fileRecords, `${fileRecords.length} file(s) uploaded successfully`, 201);
+            // If some files succeeded, return success with warning about failed ones
+            if (errors.length > 0) {
+                logger.warn('Some files failed to upload', { 
+                    succeeded: fileRecords.length, 
+                    failed: errors.length,
+                    errors 
+                });
+            }
+
+            return sendSuccess(res, fileRecords, `${fileRecords.length} file(s) uploaded successfully${errors.length > 0 ? `, ${errors.length} failed` : ''}`, 201);
         } catch (error) {
-            logger.error('Error in upload multiple files controller', { error: error.message });
+            logger.error('Error in upload multiple files controller', { 
+                error: error.message, 
+                stack: error.stack,
+                filesCount: req.files?.length || 0
+            });
             return sendError(res, error, 'Failed to upload files');
         }
     },

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { productAPI } from '../services/api';
+import { productAPI, productDetailAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
@@ -14,9 +14,9 @@ const ProductL = () => {
     const isAdmin = hasRole('admin');
     const { success: showSuccess, error: showError } = useToast();
     const [products, setProducts] = useState([]);
+    const [productStock, setProductStock] = useState({}); // { productId: totalStock }
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [_editingId, setEditingId] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
@@ -33,7 +33,25 @@ const ProductL = () => {
             setError(null);
             const response = await productAPI.getAllProducts();
             if (response.success) {
-                setProducts(response.data);
+                const productsList = response.data;
+                setProducts(productsList);
+                
+                // Fetch stock for each product from product_details
+                const stockMap = {};
+                for (const product of productsList) {
+                    try {
+                        const stockResponse = await productDetailAPI.getProductDetailsByProductId(product.id || product.Id);
+                        if (stockResponse.success) {
+                            const productDetails = stockResponse.data || [];
+                            const totalStock = productDetails.reduce((sum, pd) => sum + (pd.number || 0), 0);
+                            stockMap[product.id || product.Id] = totalStock;
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching stock for product ${product.id}:`, err);
+                        stockMap[product.id || product.Id] = 0;
+                    }
+                }
+                setProductStock(stockMap);
             } else {
                 setError(response.message);
             }
@@ -295,7 +313,12 @@ const ProductL = () => {
                                         <td style={{ padding: '14px 16px', color: '#333', fontSize: '14px' }}>{product.name}</td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{product.type || <span style={{ color: '#999' }}>-</span>}</td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{product.unit || <span style={{ color: '#999' }}>-</span>}</td>
-                                        <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{product.number ?? <span style={{ color: '#999' }}>-</span>}</td>
+                                        <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px', fontWeight: '500' }}>
+                                            {productStock[product.id || product.Id] !== undefined 
+                                                ? productStock[product.id || product.Id] 
+                                                : <span style={{ color: '#999' }}>-</span>
+                                            }
+                                        </td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px', fontWeight: '500' }}>
                                             {product.price ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(product.price) : <span style={{ color: '#999' }}>-</span>}
                                         </td>
@@ -321,21 +344,6 @@ const ProductL = () => {
                                                 >
                                                     <Icons.File size={14} />
                                                     Images
-                                                </button>
-                                                <button
-                                                    onClick={() => setEditingId(product.id)}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: '#000',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '500'
-                                                    }}
-                                                >
-                                                    <Icons.Edit size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Sửa
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(product.id)}

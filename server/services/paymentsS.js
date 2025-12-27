@@ -1,6 +1,7 @@
 const PaymentsM = require('../models/paymentsM');
 const OrdersM = require('../models/ordersM');
 const BillsM = require('../models/billsM');
+const logger = require('../utils/logger');
 
 const PaymentsS = {
     getAllPayments: async () => {
@@ -57,6 +58,37 @@ const PaymentsS = {
         if (!paymentData.id) {
             const timestamp = Date.now();
             paymentData.id = `PAY${timestamp}`;
+        }
+
+        // Find bill_id from order_id if not provided
+        if (!paymentData.billId && !paymentData.bill_id && paymentData.orderId) {
+            try {
+                const bills = await BillsM.findByOrderId(paymentData.orderId);
+                if (bills.length > 0) {
+                    paymentData.billId = bills[0].id;
+                } else {
+                    // Try to find bill by amount if orderId doesn't match
+                    const allBills = await BillsM.findAll();
+                    const paymentAmount = parseFloat(paymentData.amount || 0);
+                    const matchingBill = allBills.find(bill => {
+                        const billTotal = parseFloat(bill.total_amount || 0);
+                        return Math.abs(billTotal - paymentAmount) < 0.01 && bill.status === 'pending';
+                    });
+                    if (matchingBill) {
+                        paymentData.billId = matchingBill.id;
+                        // Also update orderId to match the bill's order_id
+                        if (!paymentData.orderId || paymentData.orderId === paymentData.txnRef) {
+                            paymentData.orderId = matchingBill.order_id;
+                        }
+                    }
+                }
+            } catch (err) {
+                // Don't fail if bill lookup fails
+                logger.warn('Could not find bill for gateway payment', {
+                    orderId: paymentData.orderId,
+                    error: err.message
+                });
+            }
         }
 
         // Set payment date if not provided and status is completed

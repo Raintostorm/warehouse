@@ -1,8 +1,15 @@
 const StatisticsS = require('../services/statisticsS');
+const CacheService = require('../utils/cacheService');
 
 const StatisticsC = {
     getDashboardStats: async (req, res) => {
         try {
+            // Check if refresh parameter is provided to bypass cache
+            const refresh = req.query.refresh === 'true';
+            if (refresh) {
+                await CacheService.delete('stats:dashboard');
+            }
+            
             const result = await StatisticsS.getDashboardStats();
             
             if (result.success) {

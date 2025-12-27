@@ -6,6 +6,17 @@
 const isDevelopment = import.meta.env.DEV;
 const isProduction = import.meta.env.PROD;
 
+// Allow disabling debug logs via localStorage or env variable
+const shouldLogDebug = () => {
+    // Check localStorage first (can be toggled in browser console)
+    const localStorageDebug = localStorage.getItem('ENABLE_DEBUG_LOGS');
+    if (localStorageDebug !== null) {
+        return localStorageDebug === 'true';
+    }
+    // Default: only log debug in development
+    return isDevelopment;
+};
+
 /**
  * Log levels
  */
@@ -21,8 +32,14 @@ const LogLevel = {
  */
 class Logger {
     log(level, message, ...args) {
-        if (isProduction && level === LogLevel.DEBUG) {
-            return; // Don't log debug in production
+        // Skip debug logs if disabled
+        if (level === LogLevel.DEBUG && !shouldLogDebug()) {
+            return;
+        }
+        
+        // Skip info logs in production unless explicitly enabled
+        if (level === LogLevel.INFO && isProduction && !shouldLogDebug()) {
+            return;
         }
 
         const timestamp = new Date().toISOString();
@@ -36,17 +53,17 @@ class Logger {
                 console.warn(prefix, message, ...args);
                 break;
             case LogLevel.INFO:
-                if (isDevelopment) {
+                if (shouldLogDebug() || isDevelopment) {
                     console.info(prefix, message, ...args);
                 }
                 break;
             case LogLevel.DEBUG:
-                if (isDevelopment) {
+                if (shouldLogDebug()) {
                     console.log(prefix, message, ...args);
                 }
                 break;
             default:
-                if (isDevelopment) {
+                if (shouldLogDebug() || isDevelopment) {
                     console.log(prefix, message, ...args);
                 }
         }

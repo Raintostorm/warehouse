@@ -25,15 +25,16 @@ const CreateBill = ({ onClose }) => {
         try {
             setLoadingOrders(true);
             const ordersResponse = await orderAPI.getAllOrders();
-            const billsResponse = await billAPI.getAllBills();
+            const ordersInBillsResponse = await billAPI.getOrdersInBills();
             
-            if (ordersResponse.success && billsResponse.success) {
+            if (ordersResponse.success && ordersInBillsResponse.success) {
                 const allOrders = ordersResponse.data || [];
-                const allBills = billsResponse.data || [];
+                const orderIdsInBills = new Set(ordersInBillsResponse.data || []);
                 
                 // Filter out:
                 // 1. gateway_payment orders (these are temporary orders created for payments, not real orders)
-                // 2. Orders that already have bills
+                // 2. Orders type "sale" (these automatically have bills, don't need manual creation)
+                // 3. Orders that already have bills (check via bill_orders junction table or order_id)
                 const ordersWithoutBills = allOrders.filter(order => {
                     const orderId = order.id || order.Id;
                     const orderType = order.type || order.Type;
@@ -43,8 +44,13 @@ const CreateBill = ({ onClose }) => {
                         return false;
                     }
                     
-                    // Exclude orders that already have bills
-                    return !allBills.some(bill => (bill.order_id || bill.orderId) === orderId);
+                    // Exclude orders type "sale" (they automatically have bills)
+                    if (orderType === 'sale' || orderType === 'sell') {
+                        return false;
+                    }
+                    
+                    // Exclude orders that already have bills (check via API)
+                    return !orderIdsInBills.has(orderId);
                 });
                 
                 // Sort by created_at DESC (most recent first)
@@ -116,26 +122,24 @@ const CreateBill = ({ onClose }) => {
                 showSuccess('Tạo hóa đơn PDF thành công!');
             } else {
                 // Chỉ tạo bill records (không tạo PDF)
+                // Tạo 1 bill cho tất cả selected orders
                 const selectedOrders = orders.filter(o => selectedOrderIds.includes(o.id || o.Id));
+                const orderIds = selectedOrders.map(o => o.id || o.Id);
+                const totalAmount = selectedOrders.reduce((sum, order) => {
+                    const orderTotal = parseFloat(order.total || order.Total || 0) || 0;
+                    return sum + orderTotal;
+                }, 0);
                 
-                for (const order of selectedOrders) {
-                    const orderId = order.id || order.Id;
-                    try {
-                        await billAPI.createBill({
-                            orderId: orderId,
-                            totalAmount: order.total || 0,
-                            status: 'pending'
-                        });
-                    } catch (err) {
-                        // Nếu bill đã tồn tại, bỏ qua và tiếp tục với order tiếp theo
-                        if (err.response?.data?.error?.includes('already exists')) {
-                            continue;
-                        }
-                        throw err;
-                    }
+                try {
+                    await billAPI.createBill({
+                        orderIds: orderIds, // Pass array of order IDs
+                        totalAmount: totalAmount,
+                        status: 'pending'
+                    });
+                    showSuccess(`Đã tạo hóa đơn cho ${selectedOrders.length} đơn hàng thành công!`);
+                } catch (err) {
+                    throw err;
                 }
-
-                showSuccess(`Đã tạo ${selectedOrders.length} hóa đơn thành công!`);
             }
 
             // Clear selected orders

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { orderAPI, productAPI, orderDetailAPI } from '../services/api';
+import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, productDetailAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useAuth } from '../src/contexts/useAuth';
 import { useToast } from '../src/contexts/ToastContext';
@@ -256,9 +256,13 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
     const isAdmin = hasRole('admin');
     const { user } = useAuth();
     const { success: showSuccess, error: showError } = useToast();
-    const [products, setProducts] = useState([]);
+    const [allProducts, setAllProducts] = useState([]); // All products (unfiltered)
+    const [allWarehouses, setAllWarehouses] = useState([]); // All warehouses (unfiltered)
+    const [products, setProducts] = useState([]); // Filtered products
+    const [warehouses, setWarehouses] = useState([]); // Filtered warehouses
     const [loadingProducts, setLoadingProducts] = useState(false);
-    const [selectedItems, setSelectedItems] = useState([]); // [{ productId, quantity }]
+    const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+    const [selectedItems, setSelectedItems] = useState([]); // [{ productId, quantity, warehouseId }]
     const [formData, setFormData] = useState({
         id: '',
         type: '',
@@ -267,15 +271,23 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
     });
     const [loading, setLoading] = useState(false);
     const [loadingOrder, setLoadingOrder] = useState(false);
+    const [productDetailsCache, setProductDetailsCache] = useState({}); // Cache product details for filtering
 
     // Load order data and products when component mounts
     useEffect(() => {
         if (orderId) {
             loadOrderData();
             fetchProducts();
+            fetchWarehouses();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderId]);
+
+    // Update filtered products and warehouses when selections change
+    useEffect(() => {
+        updateFilteredLists();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedItems, allProducts, allWarehouses, productDetailsCache, formData.type]);
 
     const loadOrderData = async () => {
         try {
@@ -297,7 +309,8 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             if (detailsResponse.success && detailsResponse.data) {
                 const items = detailsResponse.data.map(od => ({
                     productId: od.product_id || od.pid || od.productId,
-                    quantity: od.number || 0
+                    quantity: od.number || 0,
+                    warehouseId: od.warehouse_id || od.wid || od.warehouseId || ''
                 }));
                 setSelectedItems(items);
             }
@@ -315,7 +328,11 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             const response = await productAPI.getAllProducts();
             if (response.success) {
                 const productsList = response.data || [];
+                setAllProducts(productsList);
                 setProducts(productsList);
+                
+                // Pre-fetch product details for all products to enable filtering
+                await fetchProductDetailsForProducts(productsList);
             } else {
                 console.error('Failed to fetch products:', response);
                 showError('Failed to load products list');
@@ -328,6 +345,124 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
         }
     };
 
+    const fetchWarehouses = async () => {
+        try {
+            setLoadingWarehouses(true);
+            const response = await warehouseAPI.getAllWarehouses();
+            if (response.success) {
+                const warehousesList = response.data || [];
+                setAllWarehouses(warehousesList);
+                setWarehouses(warehousesList);
+            } else {
+                console.error('Failed to fetch warehouses:', response);
+                showError('Failed to load warehouses list');
+            }
+        } catch (err) {
+            console.error('Error fetching warehouses:', err);
+            showError('Failed to load warehouses list: ' + (err.message || 'Unknown error'));
+        } finally {
+            setLoadingWarehouses(false);
+        }
+    };
+
+    // Fetch product details for products to enable warehouse filtering
+    const fetchProductDetailsForProducts = async (productsList) => {
+        try {
+            const cache = {};
+            for (const product of productsList) {
+                const productId = product.id || product.Id;
+                if (productId) {
+                    try {
+                        const response = await productDetailAPI.getProductDetailsByProductId(productId);
+                        if (response.success && response.data) {
+                            cache[productId] = response.data;
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching details for product ${productId}:`, err);
+                    }
+                }
+            }
+            setProductDetailsCache(cache);
+        } catch (err) {
+            console.error('Error fetching product details:', err);
+        }
+    };
+
+    // Update filtered products and warehouses based on selections
+    const updateFilteredLists = () => {
+        const orderType = (formData.type || '').toLowerCase();
+        
+        // If Sale, don't filter by warehouse (warehouse field will be hidden)
+        if (orderType === 'sale') {
+            setProducts(allProducts);
+            setWarehouses(allWarehouses);
+            return;
+        }
+
+        // Get all selected product IDs and warehouse IDs from all items
+        const selectedProductIds = selectedItems
+            .map(item => item.productId)
+            .filter(Boolean);
+        const selectedWarehouseIds = selectedItems
+            .map(item => item.warehouseId)
+            .filter(Boolean);
+
+        // Check if we have any items with products but no warehouse (products selected first)
+        const hasProductsWithoutWarehouse = selectedItems.some(item => 
+            item.productId && !item.warehouseId
+        );
+        // Check if we have any items with warehouse but no product (warehouse selected first)
+        const hasWarehouseWithoutProduct = selectedItems.some(item => 
+            item.warehouseId && !item.productId
+        );
+
+        // If products are selected first (without warehouse), filter warehouses to only those that have those products
+        if (hasProductsWithoutWarehouse && !hasWarehouseWithoutProduct) {
+            const availableWarehouseIds = new Set();
+            selectedProductIds.forEach(productId => {
+                const details = productDetailsCache[productId] || [];
+                details.forEach(detail => {
+                    const wid = detail.wid || detail.warehouse_id || detail.warehouseId;
+                    if (wid) {
+                        availableWarehouseIds.add(wid);
+                    }
+                });
+            });
+            const filteredWarehouses = allWarehouses.filter(w => 
+                availableWarehouseIds.has(w.id || w.Id)
+            );
+            setWarehouses(filteredWarehouses.length > 0 ? filteredWarehouses : allWarehouses);
+            setProducts(allProducts); // Show all products
+        }
+        // If warehouse is selected first (without product), filter products to only those in that warehouse
+        else if (hasWarehouseWithoutProduct && !hasProductsWithoutWarehouse) {
+            const availableProductIds = new Set();
+            selectedWarehouseIds.forEach(warehouseId => {
+                // Find products that have this warehouse in their details
+                Object.keys(productDetailsCache).forEach(productId => {
+                    const details = productDetailsCache[productId] || [];
+                    const hasInWarehouse = details.some(detail => {
+                        const wid = detail.wid || detail.warehouse_id || detail.warehouseId;
+                        return wid === warehouseId;
+                    });
+                    if (hasInWarehouse) {
+                        availableProductIds.add(productId);
+                    }
+                });
+            });
+            const filteredProducts = allProducts.filter(p => 
+                availableProductIds.has(p.id || p.Id)
+            );
+            setProducts(filteredProducts.length > 0 ? filteredProducts : allProducts);
+            setWarehouses(allWarehouses); // Show all warehouses
+        }
+        // If both are selected or neither, show all
+        else {
+            setProducts(allProducts);
+            setWarehouses(allWarehouses);
+        }
+    };
+
     const handleChange = (e) => {
         setFormData({
             ...formData,
@@ -336,7 +471,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
     };
 
     const handleAddProduct = () => {
-        setSelectedItems([...selectedItems, { productId: '', quantity: 1 }]);
+        setSelectedItems([...selectedItems, { productId: '', quantity: 1, warehouseId: '' }]);
     };
 
     const handleRemoveProduct = (index) => {
@@ -372,9 +507,20 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             return;
         }
 
-        const hasInvalidItems = selectedItems.some(item => !item.productId || !item.quantity || item.quantity <= 0);
+        const orderType = (formData.type || '').toLowerCase();
+        const hasInvalidItems = selectedItems.some(item => {
+            const basicInvalid = !item.productId || !item.quantity || item.quantity <= 0;
+            // Only require warehouse if not Sale
+            if (orderType === 'sale') {
+                return basicInvalid;
+            }
+            return basicInvalid || !item.warehouseId;
+        });
         if (hasInvalidItems) {
-            showError('Vui lòng chọn sản phẩm và nhập số lượng hợp lệ cho tất cả các mục');
+            const errorMsg = orderType === 'sale' 
+                ? 'Vui lòng chọn sản phẩm và nhập số lượng hợp lệ cho tất cả các mục'
+                : 'Vui lòng chọn sản phẩm, kho hàng và nhập số lượng hợp lệ cho tất cả các mục';
+            showError(errorMsg);
             return;
         }
 
@@ -402,15 +548,31 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             const currentDetails = currentDetailsResponse.success ? (currentDetailsResponse.data || []) : [];
 
             // Delete old order details that are not in new list
-            const currentProductIds = currentDetails.map(od => od.product_id || od.pid || od.productId);
-            const newProductIds = selectedItems.map(item => item.productId).filter(Boolean);
-            const toDelete = currentProductIds.filter(id => !newProductIds.includes(id));
+            // Need to match both productId and warehouseId
+            const currentDetailsMap = new Map();
+            currentDetails.forEach(od => {
+                const pid = od.product_id || od.pid || od.productId;
+                const wid = od.warehouse_id || od.wid || od.warehouseId || '';
+                const key = `${pid}_${wid}`;
+                currentDetailsMap.set(key, { pid, wid });
+            });
 
-            for (const productId of toDelete) {
-                try {
-                    await orderDetailAPI.deleteOrderDetail(orderId, productId);
-                } catch (err) {
-                    console.error(`Error deleting order detail ${orderId}/${productId}:`, err);
+            const newDetailsMap = new Map();
+            selectedItems.forEach(item => {
+                if (!item.productId) return;
+                const wid = item.warehouseId || (allWarehouses.length > 0 ? allWarehouses[0].id || allWarehouses[0].Id : '');
+                const key = `${item.productId}_${wid}`;
+                newDetailsMap.set(key, { pid: item.productId, wid });
+            });
+
+            // Find details to delete
+            for (const [key, { pid, wid }] of currentDetailsMap) {
+                if (!newDetailsMap.has(key)) {
+                    try {
+                        await orderDetailAPI.deleteOrderDetail(orderId, pid, wid);
+                    } catch (err) {
+                        console.error(`Error deleting order detail ${orderId}/${pid}/${wid}:`, err);
+                    }
                 }
             }
 
@@ -418,13 +580,15 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             for (const item of selectedItems) {
                 if (!item.productId) continue;
 
+                const warehouseId = item.warehouseId || (allWarehouses.length > 0 ? allWarehouses[0].id || allWarehouses[0].Id : '');
                 const existingDetail = currentDetails.find(
-                    od => (od.product_id || od.pid || od.productId) === item.productId
+                    od => (od.product_id || od.pid || od.productId) === item.productId &&
+                          (od.warehouse_id || od.wid || od.warehouseId) === warehouseId
                 );
 
                 if (existingDetail) {
                     // Update existing
-                    await orderDetailAPI.updateOrderDetail(orderId, item.productId, {
+                    await orderDetailAPI.updateOrderDetail(orderId, item.productId, warehouseId, {
                         number: item.quantity,
                         note: ''
                     });
@@ -433,6 +597,8 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                     await orderDetailAPI.createOrderDetail({
                         oid: orderId,
                         pid: item.productId,
+                        wid: warehouseId,
+                        warehouse_id: warehouseId,
                         number: item.quantity,
                         note: ''
                     });
@@ -525,9 +691,9 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                                 onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                             >
                                 <option value="">Chọn loại</option>
-                                <option value="Sale">Sale</option>
-                                <option value="Sell">Export</option>
-                                <option value="Import">Import</option>
+                                <option value="sale">Sale</option>
+                                <option value="export">Export</option>
+                                <option value="import">Import</option>
                             </select>
                         </div>
                         <div>
@@ -600,29 +766,31 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                                 }}
                             />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Tổng tiền
-                            </label>
-                            <input
-                                type="text"
-                                value={new Intl.NumberFormat('vi-VN').format(total) + ' đ'}
-                                disabled
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    backgroundColor: '#f1f5f9',
-                                    color: '#64748b',
-                                    cursor: 'not-allowed',
-                                    fontWeight: '600'
-                                }}
-                            />
-                        </div>
+                        {((formData.type || '').toLowerCase() !== 'import') && (
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Tổng tiền
+                                </label>
+                                <input
+                                    type="text"
+                                    value={new Intl.NumberFormat('vi-VN').format(total) + ' đ'}
+                                    disabled
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        backgroundColor: '#f1f5f9',
+                                        color: '#64748b',
+                                        cursor: 'not-allowed',
+                                        fontWeight: '600'
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Products Selection */}
@@ -689,7 +857,9 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                                                 padding: '8px 10px',
                                                 borderBottom: index < selectedItems.length - 1 ? '1px solid #e5e7eb' : 'none',
                                                 display: 'grid',
-                                                gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
+                                                gridTemplateColumns: (formData.type || '').toLowerCase() === 'sale' 
+                                                    ? '2fr 1fr 1fr 1fr auto' 
+                                                    : '2fr 1fr 1fr 1fr 1fr auto',
                                                 gap: '6px',
                                                 alignItems: 'center',
                                                 minHeight: '50px'
@@ -703,6 +873,30 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                                                     placeholder={loadingProducts ? "Đang tải..." : products.length === 0 ? "Không có sản phẩm" : "Chọn sản phẩm"}
                                                 />
                                             </div>
+                                            {((formData.type || '').toLowerCase() !== 'sale') && (
+                                                <select
+                                                    value={item.warehouseId || ''}
+                                                    onChange={(e) => handleProductChange(index, 'warehouseId', e.target.value)}
+                                                    required
+                                                    disabled={loadingWarehouses}
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        border: '1px solid #cbd5e1',
+                                                        borderRadius: '6px',
+                                                        fontSize: '13px',
+                                                        outline: 'none',
+                                                        cursor: 'pointer',
+                                                        backgroundColor: loadingWarehouses ? '#f1f5f9' : 'white'
+                                                    }}
+                                                >
+                                                    <option value="">{loadingWarehouses ? 'Đang tải...' : 'Kho hàng'}</option>
+                                                    {warehouses.map(warehouse => (
+                                                        <option key={warehouse.id || warehouse.Id} value={warehouse.id || warehouse.Id}>
+                                                            {warehouse.name || warehouse.Name || warehouse.id || warehouse.Id}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
                                             <input
                                                 type="number"
                                                 min="1"

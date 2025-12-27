@@ -8,8 +8,17 @@ const logger = require('./logger');
 function validateFile(file, options = {}) {
     const {
         maxSize = 5 * 1024 * 1024, // 5MB default
-        allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'],
-        allowedExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+        // Support all common image formats
+        allowedTypes = [
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
+            'image/bmp', 'image/svg+xml', 'image/x-icon', 'image/vnd.microsoft.icon',
+            'image/tiff', 'image/tif', 'image/heic', 'image/heif', 'image/avif',
+            'image/jfif', 'image/jp2', 'image/jpx', 'image/x-jp2'
+        ],
+        allowedExtensions = [
+            '.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico',
+            '.tiff', '.tif', '.heic', '.heif', '.avif', '.jfif', '.jp2', '.jpx'
+        ]
     } = options;
 
     if (!file) {
@@ -22,15 +31,20 @@ function validateFile(file, options = {}) {
         throw new Error(`File size exceeds maximum allowed size of ${maxSize / 1024 / 1024}MB`);
     }
 
-    // Check MIME type
-    if (file.mimetype && !allowedTypes.includes(file.mimetype)) {
-        throw new Error(`File type not allowed. Allowed types: ${allowedTypes.join(', ')}`);
+    // Check MIME type - for images, accept any MIME type starting with 'image/'
+    if (file.mimetype) {
+        const isImage = file.mimetype.startsWith('image/');
+        if (!isImage && !allowedTypes.includes(file.mimetype)) {
+            throw new Error(`File type not allowed. Allowed types: ${allowedTypes.join(', ')} or any image/* type`);
+        }
     }
 
-    // Check extension
+    // Check extension - for images, be more permissive
     if (file.originalname) {
         const ext = path.extname(file.originalname).toLowerCase();
-        if (!allowedExtensions.includes(ext)) {
+        const isImageExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg', '.ico', 
+                           '.tiff', '.tif', '.heic', '.heif', '.avif', '.jfif', '.jp2', '.jpx'].includes(ext);
+        if (!isImageExt && !allowedExtensions.includes(ext)) {
             throw new Error(`File extension not allowed. Allowed extensions: ${allowedExtensions.join(', ')}`);
         }
     }
@@ -72,16 +86,27 @@ async function uploadFileToStorage(file, entityType, entityId, uploadType = null
     try {
         const storage = getStorageAdapter();
         
-        // Generate destination path
+        // Generate destination path with unique filename
         const ext = path.extname(file.originalname);
-        const filename = `${entityType}_${entityId}_${Date.now()}${ext}`;
+        const timestamp = Date.now();
+        const random = Math.round(Math.random() * 1000000);
+        const filename = `${entityType}_${entityId}_${timestamp}_${random}${ext}`;
         const destination = path.join(entityType, filename);
+
+        logger.info('Uploading file to storage', { 
+            destination, 
+            filename, 
+            originalName: file.originalname,
+            size: file.size 
+        });
 
         // Upload file
         const filePath = await storage.uploadFile(file, destination);
         
         // Get file URL
         const fileUrl = await storage.getFileUrl(filePath);
+
+        logger.info('File uploaded successfully', { filePath, fileUrl });
 
         return {
             filePath,
@@ -93,7 +118,13 @@ async function uploadFileToStorage(file, entityType, entityId, uploadType = null
             fileSize: file.size || (file.buffer ? file.buffer.length : 0)
         };
     } catch (error) {
-        logger.error('Error uploading file', { error: error.message, entityType, entityId });
+        logger.error('Error uploading file to storage', { 
+            error: error.message, 
+            stack: error.stack,
+            originalName: file?.originalname,
+            entityType, 
+            entityId 
+        });
         throw error;
     }
 }

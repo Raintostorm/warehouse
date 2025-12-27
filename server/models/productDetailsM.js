@@ -10,7 +10,14 @@ const ProductDetailsM = {
         return result.rows;
     },
     findByWarehouseId: async (wid) => {
-        const result = await db.query('SELECT * FROM product_details WHERE wid = $1', [wid]);
+        const result = await db.query(
+            `SELECT pd.*, p.name as product_name 
+             FROM product_details pd 
+             LEFT JOIN products p ON pd.pid = p.id 
+             WHERE pd.wid = $1 
+             ORDER BY pd.updated_at DESC`,
+            [wid]
+        );
         return result.rows;
     },
     findByProductAndWarehouse: async (pid, wid) => {

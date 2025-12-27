@@ -19,6 +19,12 @@ router.get('/:id', BillsC.getBillById);
 // Get bills by order ID
 router.get('/order/:orderId', BillsC.getBillsByOrderId);
 
+// Get orders by bill ID
+router.get('/:id/orders', BillsC.getOrdersByBillId);
+
+// Get all order IDs that are in bills (for filtering)
+router.get('/orders/in-bills', BillsC.getOrdersInBills);
+
 // Create bill (admin only)
 router.post('/', roleMiddleware(['admin']), BillsC.createBill);
 

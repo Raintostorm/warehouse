@@ -108,12 +108,22 @@ const TABLES = {
     bills: `
         CREATE TABLE IF NOT EXISTS bills (
             id VARCHAR(20) PRIMARY KEY,
-            order_id VARCHAR(15) NOT NULL,
+            order_id VARCHAR(15), -- Keep for backward compatibility, but can be NULL now
             total_amount NUMERIC(14,2) NOT NULL,
             status VARCHAR(20) DEFAULT 'pending',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             actor TEXT,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+        )
+    `,
+    bill_orders: `
+        CREATE TABLE IF NOT EXISTS bill_orders (
+            bill_id VARCHAR(20) NOT NULL,
+            order_id VARCHAR(15) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (bill_id, order_id),
+            FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
         )
     `,
@@ -191,6 +201,7 @@ const TABLES = {
         actor TEXT,
         old_data JSONB,
         new_data JSONB,
+        changed_fields TEXT[],
         ip_address VARCHAR(45),
         user_agent TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -307,6 +318,7 @@ async function createTables() {
         'orders',
         'order_details',
         'bills',
+        'bill_orders',
         'payments',
         'product_details',
         'warehouse_management',

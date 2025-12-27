@@ -30,6 +30,38 @@ const OrdersC = {
                 ...req.body,
                 actor: actorInfo
             };
+
+            // Validate order type requirements
+            const orderType = (orderData.type || '').toLowerCase();
+            if (orderType === 'sale') {
+                if (!orderData.customerName && !orderData.customer_name) {
+                    return sendError(res, new Error('Sale orders require customer_name'), 'Validation failed', 400);
+                }
+
+                // Validate stock availability before creating order
+                // For sale orders, check total stock across all warehouses
+                // If order_details are provided, validate them
+                if (orderData.orderDetails && Array.isArray(orderData.orderDetails) && orderData.orderDetails.length > 0) {
+                    const StockValidationS = require('../services/stockValidationS');
+                    // Use validateSaleOrderTotalStock to check total stock, not specific warehouse
+                    const validation = await StockValidationS.validateSaleOrderTotalStock(orderData.orderDetails);
+
+                    if (!validation.isValid) {
+                        return sendError(
+                            res,
+                            new Error('Insufficient stock for one or more products'),
+                            'Stock validation failed',
+                            400,
+                            { validation: validation.summary }
+                        );
+                    }
+                }
+            } else if (orderType === 'import') {
+                if (!orderData.supplierId && !orderData.supplier_id) {
+                    return sendError(res, new Error('Import orders require supplier_id'), 'Validation failed', 400);
+                }
+            }
+
             const order = await OrdersS.createOrder(orderData);
 
             // Log audit

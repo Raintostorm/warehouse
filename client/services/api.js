@@ -26,6 +26,9 @@ const api = axios.create({
     timeout: 30000, // 30 seconds timeout
 });
 
+// Export api instance for direct use
+export default api;
+
 // API cho Users
 export const userAPI = {
     // Lấy tất cả users
@@ -281,7 +284,25 @@ export const billAPI = {
         return response.data;
     },
     createBill: async (billData) => {
-        const response = await api.post('/bills', billData);
+        // Support both orderId (single) and orderIds (array)
+        const requestData = {
+            ...billData,
+            // If orderIds is provided, use it; otherwise use orderId
+            orderIds: billData.orderIds || (billData.orderId ? [billData.orderId] : undefined)
+        };
+        // Remove orderId if orderIds is provided
+        if (requestData.orderIds) {
+            delete requestData.orderId;
+        }
+        const response = await api.post('/bills', requestData);
+        return response.data;
+    },
+    getOrdersByBillId: async (billId) => {
+        const response = await api.get(`/bills/${billId}/orders`);
+        return response.data;
+    },
+    getOrdersInBills: async () => {
+        const response = await api.get('/bills/orders/in-bills');
         return response.data;
     },
     updateBill: async (id, billData) => {
@@ -388,6 +409,30 @@ export const supplierAPI = {
     }
 };
 
+// API cho Supplier Import History
+export const supplierImportHistoryAPI = {
+    getHistoryBySupplier: async (supplierId, filters = {}) => {
+        const params = { ...filters };
+        const response = await api.get(`/supplier-import-history/supplier/${supplierId}`, { params });
+        return response.data;
+    },
+    getHistoryByProduct: async (productId, filters = {}) => {
+        const params = { ...filters };
+        const response = await api.get(`/supplier-import-history/product/${productId}`, { params });
+        return response.data;
+    },
+    getHistoryByWarehouse: async (warehouseId, filters = {}) => {
+        const params = { ...filters };
+        const response = await api.get(`/supplier-import-history/warehouse/${warehouseId}`, { params });
+        return response.data;
+    },
+    getAllHistory: async (filters = {}) => {
+        const params = { ...filters };
+        const response = await api.get('/supplier-import-history', { params });
+        return response.data;
+    }
+};
+
 // API cho ProductDetails
 export const productDetailAPI = {
     getAllProductDetails: async () => {
@@ -434,12 +479,16 @@ export const orderDetailAPI = {
         const response = await api.post('/order-details', orderDetailData);
         return response.data;
     },
-    updateOrderDetail: async (oid, pid, orderDetailData) => {
-        const response = await api.put(`/order-details/${oid}/${pid}`, orderDetailData);
+    updateOrderDetail: async (oid, pid, wid, orderDetailData) => {
+        // Include warehouse_id in body if provided
+        const data = wid ? { ...orderDetailData, wid, warehouse_id: wid } : orderDetailData;
+        const response = await api.put(`/order-details/${oid}/${pid}`, data);
         return response.data;
     },
-    deleteOrderDetail: async (oid, pid) => {
-        const response = await api.delete(`/order-details/${oid}/${pid}`);
+    deleteOrderDetail: async (oid, pid, wid) => {
+        // Include warehouse_id in body if provided
+        const data = wid ? { wid, warehouse_id: wid } : {};
+        const response = await api.delete(`/order-details/${oid}/${pid}`, { data });
         return response.data;
     }
 };
@@ -530,8 +579,9 @@ export const orderWarehouseAPI = {
 
 // API cho Statistics & Analytics
 export const statisticsAPI = {
-    getDashboardStats: async () => {
-        const response = await api.get('/statistics/dashboard');
+    getDashboardStats: async (refresh = false) => {
+        const params = refresh ? { refresh: 'true' } : {};
+        const response = await api.get('/statistics/dashboard', { params });
         return response.data;
     },
     getSalesTrends: async (period = 'month', days = 30) => {
@@ -1009,6 +1059,3 @@ export const fileUploadAPI = {
         return response.data;
     }
 };
-
-export default api;
-

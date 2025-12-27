@@ -26,7 +26,8 @@ import {
     LoadingIcon,
     SettingsIcon,
     SunIcon,
-    MoonIcon
+    MoonIcon,
+    HistoryIcon
 } from './customIcons';
 
 // Export các custom icons - hoàn toàn tùy chỉnh, không phụ thuộc react-icons
@@ -79,8 +80,9 @@ export const Icons = {
     Sun: SunIcon,
     Moon: MoonIcon,
 
-    // Additional icons (using existing icons as placeholders)
-    Clock: OrderIcon, // Using OrderIcon as placeholder
+    // Additional icons
+    History: HistoryIcon,
+    Clock: HistoryIcon, // Alias
     ArrowRightLeft: RefreshIcon // Using RefreshIcon as placeholder
 };
 

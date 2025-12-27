@@ -29,13 +29,19 @@ const BillsM = {
     },
 
     create: async (bill) => {
+        // Ensure total_amount is a number
+        const totalAmount = parseFloat(bill.totalAmount || bill.total_amount || 0);
+        if (isNaN(totalAmount)) {
+            throw new Error('Invalid total_amount: must be a number');
+        }
+        
         const result = await db.query(
             `INSERT INTO bills (id, order_id, total_amount, status, actor) 
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
             [
                 bill.id,
                 bill.orderId || bill.order_id,
-                bill.totalAmount || bill.total_amount,
+                totalAmount,
                 bill.status || 'pending',
                 bill.actor || null
             ]
@@ -80,6 +86,66 @@ const BillsM = {
     delete: async (id) => {
         const result = await db.query('DELETE FROM bills WHERE id = $1 RETURNING *', [id]);
         return result.rows[0];
+    },
+
+    // Get orders for a bill (from bill_orders junction table)
+    getOrdersByBillId: async (billId) => {
+        try {
+            const result = await db.query(
+                'SELECT o.* FROM orders o INNER JOIN bill_orders bo ON o.id = bo.order_id WHERE bo.bill_id = $1 ORDER BY o.created_at',
+                [billId]
+            );
+            return result.rows;
+        } catch (error) {
+            // If bill_orders table doesn't exist yet, fallback to order_id
+            const bill = await BillsM.findById(billId);
+            if (bill && bill.order_id) {
+                const result = await db.query('SELECT * FROM orders WHERE id = $1', [bill.order_id]);
+                return result.rows;
+            }
+            return [];
+        }
+    },
+
+    // Add order to bill (bill_orders junction table)
+    addOrderToBill: async (billId, orderId) => {
+        try {
+            const result = await db.query(
+                'INSERT INTO bill_orders (bill_id, order_id) VALUES ($1, $2) ON CONFLICT (bill_id, order_id) DO NOTHING RETURNING *',
+                [billId, orderId]
+            );
+            return result.rows[0];
+        } catch (error) {
+            // If bill_orders table doesn't exist, just return
+            return null;
+        }
+    },
+
+    // Remove order from bill
+    removeOrderFromBill: async (billId, orderId) => {
+        try {
+            const result = await db.query(
+                'DELETE FROM bill_orders WHERE bill_id = $1 AND order_id = $2 RETURNING *',
+                [billId, orderId]
+            );
+            return result.rows[0];
+        } catch (error) {
+            return null;
+        }
+    },
+
+    // Get bills that contain an order
+    getBillsByOrderIdFromJunction: async (orderId) => {
+        try {
+            const result = await db.query(
+                'SELECT b.* FROM bills b INNER JOIN bill_orders bo ON b.id = bo.bill_id WHERE bo.order_id = $1 ORDER BY b.created_at DESC',
+                [orderId]
+            );
+            return result.rows;
+        } catch (error) {
+            // Fallback to old method
+            return await BillsM.findByOrderId(orderId);
+        }
     }
 };
 

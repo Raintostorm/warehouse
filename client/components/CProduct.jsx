@@ -16,7 +16,7 @@ const CProduct = ({ onProductCreated }) => {
         name: '',
         type: '',
         unit: '',
-        number: '',
+        number: '0', // Products start with 0 quantity
         price: '',
         supplierId: ''
     });
@@ -37,7 +37,7 @@ const CProduct = ({ onProductCreated }) => {
         try {
             const response = await productAPI.createProduct({
                 ...formData,
-                number: formData.number ? parseInt(formData.number) : null,
+                number: 0, // Always set to 0 - products must be imported first
                 price: formData.price ? parseFloat(formData.price) : null
             });
 
@@ -49,7 +49,7 @@ const CProduct = ({ onProductCreated }) => {
                     name: '',
                     type: '',
                     unit: '',
-                    number: '',
+                    number: '0',
                     price: '',
                     supplierId: ''
                 });
@@ -231,14 +231,13 @@ const CProduct = ({ onProductCreated }) => {
                         </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Quantity
+                                Initial Quantity
                             </label>
                             <input
                                 type="number"
                                 name="number"
-                                value={formData.number}
-                                onChange={handleChange}
-                                placeholder="Enter quantity"
+                                value="0"
+                                disabled
                                 style={{
                                     width: '100%',
                                     padding: '12px 16px',
@@ -247,11 +246,19 @@ const CProduct = ({ onProductCreated }) => {
                                     fontSize: '14px',
                                     outline: 'none',
                                     boxSizing: 'border-box',
-                                    transition: 'all 0.2s'
+                                    backgroundColor: '#f1f5f9',
+                                    color: '#64748b',
+                                    cursor: 'not-allowed'
                                 }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                             />
+                            <div style={{
+                                marginTop: '4px',
+                                fontSize: '12px',
+                                color: '#64748b',
+                                fontStyle: 'italic'
+                            }}>
+                                Products start with 0 quantity. Use import orders to add stock.
+                            </div>
                         </div>
                         <div>
                             <label style={{ display: 'block', marginBottom: '8px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>

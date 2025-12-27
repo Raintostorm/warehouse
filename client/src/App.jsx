@@ -18,6 +18,7 @@ const WarehouseL = lazy(() => import('../components/WarehouseL'));
 const CWarehouse = lazy(() => import('../components/CWarehouse'));
 const OrderL = lazy(() => import('../components/OrderL'));
 const COrder = lazy(() => import('../components/COrder'));
+const BillL = lazy(() => import('../components/BillL'));
 const Payments = lazy(() => import('../components/Payments'));
 const PaymentCallback = lazy(() => import('../components/PaymentCallback'));
 const ProductL = lazy(() => import('../components/ProductL'));
@@ -30,7 +31,6 @@ const Reports = lazy(() => import('../components/Reports'));
 const Settings = lazy(() => import('../components/Settings'));
 const VideoCallList = lazy(() => import('./components/VideoCallList'));
 const AdminNotificationPanel = lazy(() => import('./components/AdminNotificationPanel'));
-const AIChat = lazy(() => import('./components/AIChat'));
 const CustomChatbot = lazy(() => import('./components/CustomChatbot'));
 const InventoryManagement = lazy(() => import('../components/InventoryManagement'));
 const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard'));
@@ -217,22 +217,11 @@ function App() {
   }
 
   // Check authentication - use both function result and state
-  console.log('[App] Authentication check:', {
-    authenticated,
-    authState,
-    isUserAuthenticated,
-    hasToken: !!token,
-    hasUser: !!user,
-    tokenInStorage: !!localStorage.getItem('token'),
-    userInStorage: !!localStorage.getItem('user')
-  });
+  // Removed verbose logging - only log errors if needed
 
   if (!isUserAuthenticated) {
-    console.log('[App] Not authenticated, showing Login');
     return <Login />;
   }
-
-  console.log('[App] Authenticated, showing dashboard');
 
   // Theme-aware colors
   const bgGradient = isDark
@@ -449,6 +438,9 @@ function App() {
                 <OrderL key={`order-${refreshKey}`} />
               </>
             )}
+            {activeTab === 'bills' && (
+              <BillL key={`bill-${refreshKey}`} />
+            )}
             {activeTab === 'payments' && (
               <Payments />
             )}
@@ -486,13 +478,6 @@ function App() {
               <Settings />
             )}
           </Suspense>
-
-          {/* AI Chat - Floating widget (Gemini AI) */}
-          {isAuthenticated && (
-            <Suspense fallback={null}>
-              <AIChat />
-            </Suspense>
-          )}
 
           {/* Custom Chatbot - Floating widget (Custom AI with Actions) */}
           {isAuthenticated && (

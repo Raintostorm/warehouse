@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { orderAPI, productAPI, orderDetailAPI } from '../services/api';
+import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, supplierAPI } from '../services/api';
+import api from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useAuth } from '../src/contexts/useAuth';
 import { useToast } from '../src/contexts/ToastContext';
@@ -264,47 +265,76 @@ const COrder = ({ onOrderCreated }) => {
     const { user } = useAuth();
     const { success: showSuccess, error: showError } = useToast();
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [products, setProducts] = useState([]);
+    const [allProducts, setAllProducts] = useState([]); // All products (unfiltered)
+    const [allWarehouses, setAllWarehouses] = useState([]); // All warehouses (unfiltered)
+    const [products, setProducts] = useState([]); // Filtered products
+    const [warehouses, setWarehouses] = useState([]); // Filtered warehouses
+    const [suppliers, setSuppliers] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
-    const [selectedItems, setSelectedItems] = useState([]); // [{ productId, quantity }]
+    const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+    const [loadingSuppliers, setLoadingSuppliers] = useState(false);
+    const [selectedItems, setSelectedItems] = useState([]); // [{ productId, quantity, warehouseId }]
     const [formData, setFormData] = useState({
         id: '',
         type: '',
         date: new Date().toISOString().split('T')[0], // Default to today
-        customerName: ''
+        customerName: '',
+        supplierId: ''
     });
     const [loading, setLoading] = useState(false);
     const [loadingOrderId, setLoadingOrderId] = useState(false);
+    const [stockInfo, setStockInfo] = useState({}); // { productId_warehouseId: { available, requested } }
+    const [productDetailsCache, setProductDetailsCache] = useState({}); // Cache product details for filtering
 
-    // Load products and order ID when modal opens
+    // Load products, warehouses, suppliers and order ID when modal opens
     useEffect(() => {
         if (isModalOpen) {
             fetchProducts();
-            fetchNextOrderId();
+            fetchWarehouses();
+            fetchSuppliers();
+            fetchNextOrderId(formData.type);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isModalOpen]);
 
+    // Update filtered products and warehouses when selections change
+    useEffect(() => {
+        updateFilteredLists();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedItems, allProducts, allWarehouses, productDetailsCache]);
+
     // Fetch next order ID from backend
-    const fetchNextOrderId = async () => {
+    const fetchNextOrderId = async (orderType = '') => {
         try {
             setLoadingOrderId(true);
             // Get all orders to find the next ID
             const response = await orderAPI.getAllOrders();
             if (response.success) {
                 const orders = response.data || [];
-                // Find max order ID
+                const type = (orderType || '').toLowerCase();
+                
+                // Determine prefix based on order type
+                let prefix = 'ORD';
+                if (type === 'sale') {
+                    prefix = 'SA';
+                } else if (type === 'import') {
+                    prefix = 'IM';
+                } else if (type === 'export') {
+                    prefix = 'EX';
+                }
+
+                // Find max order ID with matching prefix
                 const orderIds = orders
                     .map(o => o.id || o.Id)
-                    .filter(id => id && id.startsWith('ORD'))
+                    .filter(id => id && id.startsWith(prefix))
                     .map(id => {
-                        const match = id.match(/ORD(\d+)/);
+                        const match = id.match(new RegExp(`${prefix}(\\d+)`));
                         return match ? parseInt(match[1], 10) : 0;
                     });
 
                 const maxId = orderIds.length > 0 ? Math.max(...orderIds) : 0;
                 const nextId = maxId + 1;
-                const nextOrderId = `ORD${nextId.toString().padStart(3, '0')}`;
+                const nextOrderId = `${prefix}${nextId.toString().padStart(6, '0')}`;
 
                 setFormData(prev => ({
                     ...prev,
@@ -314,7 +344,16 @@ const COrder = ({ onOrderCreated }) => {
         } catch (err) {
             console.error('Error fetching next order ID:', err);
             // Fallback: use timestamp-based ID
-            const fallbackId = `ORD${Date.now().toString().slice(-6)}`;
+            const type = (orderType || '').toLowerCase();
+            let prefix = 'ORD';
+            if (type === 'sale') {
+                prefix = 'SA';
+            } else if (type === 'import') {
+                prefix = 'IM';
+            } else if (type === 'export') {
+                prefix = 'EX';
+            }
+            const fallbackId = `${prefix}${Date.now().toString().slice(-6)}`;
             setFormData(prev => ({
                 ...prev,
                 id: fallbackId
@@ -330,7 +369,11 @@ const COrder = ({ onOrderCreated }) => {
             const response = await productAPI.getAllProducts();
             if (response.success) {
                 const productsList = response.data || [];
+                setAllProducts(productsList);
                 setProducts(productsList);
+                
+                // Pre-fetch product details for all products to enable filtering
+                await fetchProductDetailsForProducts(productsList);
             } else {
                 console.error('Failed to fetch products:', response);
                 showError('Failed to load products list');
@@ -343,19 +386,197 @@ const COrder = ({ onOrderCreated }) => {
         }
     };
 
+    // Fetch product details for products to enable warehouse filtering
+    const fetchProductDetailsForProducts = async (productsList) => {
+        try {
+            const cache = {};
+            for (const product of productsList) {
+                const productId = product.id || product.Id;
+                if (productId) {
+                    try {
+                        const response = await productDetailAPI.getProductDetailsByProductId(productId);
+                        if (response.success && response.data) {
+                            cache[productId] = response.data;
+                        }
+                    } catch (err) {
+                        console.error(`Error fetching details for product ${productId}:`, err);
+                    }
+                }
+            }
+            setProductDetailsCache(cache);
+        } catch (err) {
+            console.error('Error fetching product details:', err);
+        }
+    };
+
+    const fetchWarehouses = async () => {
+        try {
+            setLoadingWarehouses(true);
+            const response = await warehouseAPI.getAllWarehouses();
+            if (response.success) {
+                const warehousesList = response.data || [];
+                setAllWarehouses(warehousesList);
+                setWarehouses(warehousesList);
+            } else {
+                console.error('Failed to fetch warehouses:', response);
+                showError('Failed to load warehouses list');
+            }
+        } catch (err) {
+            console.error('Error fetching warehouses:', err);
+            showError('Failed to load warehouses list: ' + (err.message || 'Unknown error'));
+        } finally {
+            setLoadingWarehouses(false);
+        }
+    };
+
+    // Update filtered products and warehouses based on selections
+    const updateFilteredLists = () => {
+        const orderType = (formData.type || '').toLowerCase();
+        
+        // If Sale, don't filter by warehouse (warehouse field will be hidden)
+        if (orderType === 'sale') {
+            setProducts(allProducts);
+            setWarehouses(allWarehouses);
+            return;
+        }
+
+        // Get all selected product IDs and warehouse IDs from all items
+        const selectedProductIds = selectedItems
+            .map(item => item.productId)
+            .filter(Boolean);
+        const selectedWarehouseIds = selectedItems
+            .map(item => item.warehouseId)
+            .filter(Boolean);
+
+        // Check if we have any items with products but no warehouse (products selected first)
+        const hasProductsWithoutWarehouse = selectedItems.some(item => 
+            item.productId && !item.warehouseId
+        );
+        // Check if we have any items with warehouse but no product (warehouse selected first)
+        const hasWarehouseWithoutProduct = selectedItems.some(item => 
+            item.warehouseId && !item.productId
+        );
+
+        // If products are selected first (without warehouse), filter warehouses to only those that have those products
+        if (hasProductsWithoutWarehouse && !hasWarehouseWithoutProduct) {
+            const availableWarehouseIds = new Set();
+            selectedProductIds.forEach(productId => {
+                const details = productDetailsCache[productId] || [];
+                details.forEach(detail => {
+                    const wid = detail.wid || detail.warehouse_id || detail.warehouseId;
+                    if (wid) {
+                        availableWarehouseIds.add(wid);
+                    }
+                });
+            });
+            const filteredWarehouses = allWarehouses.filter(w => 
+                availableWarehouseIds.has(w.id || w.Id)
+            );
+            setWarehouses(filteredWarehouses.length > 0 ? filteredWarehouses : allWarehouses);
+            setProducts(allProducts); // Show all products
+        }
+        // If warehouse is selected first (without product), filter products to only those in that warehouse
+        else if (hasWarehouseWithoutProduct && !hasProductsWithoutWarehouse) {
+            const availableProductIds = new Set();
+            selectedWarehouseIds.forEach(warehouseId => {
+                // Find products that have this warehouse in their details
+                Object.keys(productDetailsCache).forEach(productId => {
+                    const details = productDetailsCache[productId] || [];
+                    const hasInWarehouse = details.some(detail => {
+                        const wid = detail.wid || detail.warehouse_id || detail.warehouseId;
+                        return wid === warehouseId;
+                    });
+                    if (hasInWarehouse) {
+                        availableProductIds.add(productId);
+                    }
+                });
+            });
+            const filteredProducts = allProducts.filter(p => 
+                availableProductIds.has(p.id || p.Id)
+            );
+            setProducts(filteredProducts.length > 0 ? filteredProducts : allProducts);
+            setWarehouses(allWarehouses); // Show all warehouses
+        }
+        // If both are selected or neither, show all
+        else {
+            setProducts(allProducts);
+            setWarehouses(allWarehouses);
+        }
+    };
+
+    const fetchSuppliers = async () => {
+        try {
+            setLoadingSuppliers(true);
+            const response = await supplierAPI.getAllSuppliers();
+            if (response.success) {
+                const suppliersList = response.data || [];
+                setSuppliers(suppliersList);
+            } else {
+                console.error('Failed to fetch suppliers:', response);
+                showError('Failed to load suppliers list');
+            }
+        } catch (err) {
+            console.error('Error fetching suppliers:', err);
+            showError('Failed to load suppliers list: ' + (err.message || 'Unknown error'));
+        } finally {
+            setLoadingSuppliers(false);
+        }
+    };
+
     const handleChange = (e) => {
-        setFormData({
+        const newFormData = {
             ...formData,
             [e.target.name]: e.target.value
-        });
+        };
+        setFormData(newFormData);
+        
+        // If type changes, regenerate order ID
+        if (e.target.name === 'type') {
+            fetchNextOrderId(e.target.value);
+            // Reset type-specific fields
+            setFormData(prev => ({
+                ...prev,
+                type: e.target.value,
+                customerName: e.target.value.toLowerCase() === 'sale' ? prev.customerName : '',
+                supplierId: e.target.value.toLowerCase() === 'import' ? prev.supplierId : ''
+            }));
+        }
     };
 
     const handleAddProduct = () => {
-        setSelectedItems([...selectedItems, { productId: '', quantity: 1 }]);
+        setSelectedItems([...selectedItems, { productId: '', quantity: 1, warehouseId: '' }]);
     };
 
     const handleRemoveProduct = (index) => {
         setSelectedItems(selectedItems.filter((_, i) => i !== index));
+    };
+
+    const updateStockInfo = async (item) => {
+        if (!item.productId || !item.warehouseId) {
+            return;
+        }
+
+        try {
+            // Fetch stock info from product-details API
+            const response = await productDetailAPI.getProductDetailsByProductId(item.productId);
+            if (response.success) {
+                const productDetails = response.data || [];
+                const detail = productDetails.find(pd => 
+                    (pd.wid || pd.warehouse_id || pd.warehouseId) === item.warehouseId
+                );
+                const available = detail ? (detail.number || 0) : 0;
+                
+                setStockInfo(prev => ({
+                    ...prev,
+                    [`${item.productId}_${item.warehouseId}`]: {
+                        available,
+                        requested: item.quantity || 0
+                    }
+                }));
+            }
+        } catch (err) {
+            console.error('Error fetching stock info:', err);
+        }
     };
 
     const handleProductChange = (index, field, value) => {
@@ -365,6 +586,11 @@ const COrder = ({ onOrderCreated }) => {
             [field]: field === 'quantity' ? parseInt(value) || 0 : value
         };
         setSelectedItems(updated);
+
+        // Update stock info when product or warehouse changes
+        if (field === 'productId' || field === 'warehouseId') {
+            updateStockInfo(updated[index]);
+        }
     };
 
     // Calculate total from selected products
@@ -382,16 +608,69 @@ const COrder = ({ onOrderCreated }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        const orderType = (formData.type || '').toLowerCase();
+
+        // Validate order type requirements
+        if (orderType === 'sale') {
+            if (!formData.customerName || formData.customerName.trim() === '') {
+                showError('Customer name is required for sale orders');
+                return;
+            }
+        } else if (orderType === 'import') {
+            if (!formData.supplierId || formData.supplierId.trim() === '') {
+                showError('Supplier is required for import orders');
+                return;
+            }
+        }
+
         // Validation
         if (selectedItems.length === 0) {
             showError('Please select at least one product');
             return;
         }
 
-        const hasInvalidItems = selectedItems.some(item => !item.productId || !item.quantity || item.quantity <= 0);
+        const hasInvalidItems = selectedItems.some(item => {
+            const basicInvalid = !item.productId || !item.quantity || item.quantity <= 0;
+            // Only require warehouse if not Sale
+            if (orderType === 'sale') {
+                return basicInvalid;
+            }
+            return basicInvalid || !item.warehouseId;
+        });
         if (hasInvalidItems) {
-            showError('Please select products and enter valid quantities for all items');
+            const errorMsg = orderType === 'sale' 
+                ? 'Please select products and enter valid quantities for all items'
+                : 'Please select products, warehouses, and enter valid quantities for all items';
+            showError(errorMsg);
             return;
+        }
+
+        // For sale orders: validate stock before creating order
+        if (orderType === 'sale') {
+            try {
+                // For Sale orders, validate total stock across all warehouses (no specific warehouse needed)
+                const orderDetailsForValidation = selectedItems.map(item => ({
+                    productId: item.productId,
+                    number: item.quantity
+                    // No warehouseId needed - we check total stock across all warehouses
+                }));
+
+                const validationResponse = await api.post('/orders/validate-stock-total', {
+                    orderDetails: orderDetailsForValidation
+                });
+
+                if (!validationResponse.data.success || !validationResponse.data.data.isValid) {
+                    const errors = validationResponse.data.data.summary?.errors || [];
+                    const errorMessage = errors.length > 0
+                        ? `Insufficient stock:\n${errors.map(e => `- ${e.product}: Available ${e.available}, Requested ${e.requested}`).join('\n')}`
+                        : 'Insufficient stock for one or more products';
+                    showError(errorMessage);
+                    return;
+                }
+            } catch (err) {
+                console.error('Error validating stock:', err);
+                // Continue anyway - backend will also validate
+            }
         }
 
         setLoading(true);
@@ -401,15 +680,22 @@ const COrder = ({ onOrderCreated }) => {
             const userId = user?.id || user?.Id || '';
 
             // Create order first (backend will auto-generate ID if not provided)
-            const orderResponse = await orderAPI.createOrder({
-                // id: formData.id, // Let backend auto-generate if empty, or use provided ID
+            const orderData = {
                 ...(formData.id && { id: formData.id }), // Only include id if it exists
-                type: formData.type,
+                type: orderType, // Use lowercase
                 date: formData.date,
                 uId: userId,
-                customerName: formData.customerName,
                 total: total
-            });
+            };
+
+            // Add type-specific fields
+            if (orderType === 'sale') {
+                orderData.customerName = formData.customerName;
+            } else if (orderType === 'import') {
+                orderData.supplierId = formData.supplierId;
+            }
+
+            const orderResponse = await orderAPI.createOrder(orderData);
 
             // Get the actual order ID from response (in case backend generated it)
             const createdOrderId = orderResponse.data?.id || orderResponse.data?.Id || formData.id;
@@ -418,14 +704,28 @@ const COrder = ({ onOrderCreated }) => {
                 throw new Error(orderResponse.message || 'Failed to create order');
             }
 
-            // Create order details for each selected product
+            // Create order details for each selected product with warehouse
             const orderDetailsPromises = selectedItems.map(item => {
-                return orderDetailAPI.createOrderDetail({
+                // For Sale orders, don't specify warehouse - backend will find one with stock
+                // For Import/Export orders, use the selected warehouse
+                const warehouseId = orderType === 'sale' 
+                    ? null // Backend will automatically find warehouse with stock
+                    : item.warehouseId;
+                
+                const orderDetailData = {
                     oid: createdOrderId, // Use the actual order ID from response
                     pid: item.productId,
                     number: item.quantity,
                     note: ''
-                });
+                };
+                
+                // Only include warehouse fields if warehouseId is provided
+                if (warehouseId) {
+                    orderDetailData.wid = warehouseId;
+                    orderDetailData.warehouse_id = warehouseId;
+                }
+                
+                return orderDetailAPI.createOrderDetail(orderDetailData);
             });
 
             await Promise.all(orderDetailsPromises);
@@ -436,9 +736,11 @@ const COrder = ({ onOrderCreated }) => {
                 id: '', // Will be auto-filled when modal reopens
                 type: '',
                 date: new Date().toISOString().split('T')[0],
-                customerName: ''
+                customerName: '',
+                supplierId: ''
             });
             setSelectedItems([]);
+            setStockInfo({});
             setIsModalOpen(false);
             if (onOrderCreated) {
                 onOrderCreated();
@@ -453,13 +755,15 @@ const COrder = ({ onOrderCreated }) => {
 
     const handleClose = () => {
         setIsModalOpen(false);
-        setFormData({
-            id: '',
-            type: '',
-            date: new Date().toISOString().split('T')[0],
-            customerName: ''
-        });
-        setSelectedItems([]);
+            setFormData({
+                id: '',
+                type: '',
+                date: new Date().toISOString().split('T')[0],
+                customerName: '',
+                supplierId: ''
+            });
+            setSelectedItems([]);
+            setStockInfo({});
     };
 
 
@@ -563,9 +867,9 @@ const COrder = ({ onOrderCreated }) => {
                                 onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                             >
                                 <option value="">Select type</option>
-                                <option value="Sale">Sale</option>
-                                <option value="Sell">Export</option>
-                                <option value="Import">Import</option>
+                                <option value="sale">Sale</option>
+                                <option value="import">Import</option>
+                                <option value="export">Export</option>
                             </select>
                         </div>
                         <div>
@@ -592,30 +896,68 @@ const COrder = ({ onOrderCreated }) => {
                                 onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
                             />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Customer Name
-                            </label>
-                            <input
-                                type="text"
-                                name="customerName"
-                                value={formData.customerName}
-                                onChange={handleChange}
-                                placeholder="Enter customer name"
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                            />
-                        </div>
+                        {(formData.type || '').toLowerCase() === 'sale' && (
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Customer Name <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    name="customerName"
+                                    value={formData.customerName}
+                                    onChange={handleChange}
+                                    placeholder="Enter customer name"
+                                    required
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#475569'}
+                                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                                />
+                            </div>
+                        )}
+                        {(formData.type || '').toLowerCase() === 'import' && (
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Supplier <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <select
+                                    name="supplierId"
+                                    value={formData.supplierId}
+                                    onChange={handleChange}
+                                    required
+                                    disabled={loadingSuppliers}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        transition: 'all 0.2s',
+                                        cursor: 'pointer',
+                                        backgroundColor: loadingSuppliers ? '#f1f5f9' : 'white'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#475569'}
+                                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                                >
+                                    <option value="">{loadingSuppliers ? 'Loading...' : 'Select supplier'}</option>
+                                    {suppliers.map(supplier => (
+                                        <option key={supplier.id || supplier.Id} value={supplier.id || supplier.Id}>
+                                            {supplier.name || supplier.Name || supplier.id || supplier.Id}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                         <div>
                             <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
                                 User ID
@@ -638,29 +980,31 @@ const COrder = ({ onOrderCreated }) => {
                                 }}
                             />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Total Amount
-                            </label>
-                            <input
-                                type="text"
-                                value={new Intl.NumberFormat('vi-VN').format(total) + ' đ'}
-                                disabled
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    backgroundColor: '#f1f5f9',
-                                    color: '#64748b',
-                                    cursor: 'not-allowed',
-                                    fontWeight: '600'
-                                }}
-                            />
-                        </div>
+                        {((formData.type || '').toLowerCase() !== 'import') && (
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Total Amount
+                                </label>
+                                <input
+                                    type="text"
+                                    value={new Intl.NumberFormat('vi-VN').format(total) + ' đ'}
+                                    disabled
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        backgroundColor: '#f1f5f9',
+                                        color: '#64748b',
+                                        cursor: 'not-allowed',
+                                        fontWeight: '600'
+                                    }}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Products Selection */}
@@ -724,16 +1068,18 @@ const COrder = ({ onOrderCreated }) => {
                                         <div
                                             key={index}
                                             style={{
-                                                padding: '8px 10px', // Giảm padding để tiết kiệm không gian
+                                                padding: '8px 10px',
                                                 borderBottom: index < selectedItems.length - 1 ? '1px solid #e5e7eb' : 'none',
                                                 display: 'grid',
-                                                gridTemplateColumns: '2fr 1fr 1fr 1fr auto',
-                                                gap: '6px', // Giảm gap
+                                                gridTemplateColumns: (formData.type || '').toLowerCase() === 'sale' 
+                                                    ? '2fr 1fr 1fr 1fr auto' 
+                                                    : '2fr 1fr 1fr 1fr 1fr auto',
+                                                gap: '6px',
                                                 alignItems: 'center',
-                                                minHeight: '50px' // Giảm min height
+                                                minHeight: '50px'
                                             }}
                                         >
-                                            <div style={{ minWidth: 0 }}> {/* Đảm bảo dropdown không overflow */}
+                                            <div style={{ minWidth: 0 }}>
                                                 <ProductSelectDropdown
                                                     value={item.productId}
                                                     products={products || []}
@@ -741,42 +1087,79 @@ const COrder = ({ onOrderCreated }) => {
                                                     placeholder={loadingProducts ? "Loading..." : products.length === 0 ? "No products" : "Select product"}
                                                 />
                                             </div>
+                                            {((formData.type || '').toLowerCase() !== 'sale') && (
+                                                <select
+                                                    value={item.warehouseId || ''}
+                                                    onChange={(e) => handleProductChange(index, 'warehouseId', e.target.value)}
+                                                    required
+                                                    disabled={loadingWarehouses}
+                                                    style={{
+                                                        padding: '8px 10px',
+                                                        border: '1px solid #cbd5e1',
+                                                        borderRadius: '6px',
+                                                        fontSize: '13px',
+                                                        outline: 'none',
+                                                        cursor: 'pointer',
+                                                        backgroundColor: loadingWarehouses ? '#f1f5f9' : 'white'
+                                                    }}
+                                                >
+                                                    <option value="">{loadingWarehouses ? 'Loading...' : 'Warehouse'}</option>
+                                                    {warehouses.map(warehouse => (
+                                                        <option key={warehouse.id || warehouse.Id} value={warehouse.id || warehouse.Id}>
+                                                            {warehouse.name || warehouse.Name || warehouse.id || warehouse.Id}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                            )}
                                             <input
                                                 type="number"
                                                 min="1"
                                                 value={item.quantity}
-                                                onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                                                onChange={(e) => {
+                                                    handleProductChange(index, 'quantity', e.target.value);
+                                                    // Update stock info when quantity changes
+                                                    if (item.productId && item.warehouseId) {
+                                                        const updated = [...selectedItems];
+                                                        updated[index] = { ...updated[index], quantity: parseInt(e.target.value) || 0 };
+                                                        updateStockInfo(updated[index]);
+                                                    }
+                                                }}
                                                 placeholder="Qty"
                                                 required
                                                 style={{
-                                                    padding: '8px 10px', // Giảm padding
+                                                    padding: '8px 10px',
                                                     border: '1px solid #cbd5e1',
                                                     borderRadius: '6px',
-                                                    fontSize: '13px', // Giảm font size
+                                                    fontSize: '13px',
                                                     outline: 'none'
                                                 }}
                                             />
                                             <div style={{
-                                                padding: '8px 6px', // Giảm padding
+                                                padding: '8px 6px',
                                                 textAlign: 'right',
                                                 fontWeight: '600',
                                                 color: '#475569',
-                                                fontSize: '13px' // Giảm font size
+                                                fontSize: '13px'
                                             }}>
                                                 {new Intl.NumberFormat('vi-VN').format(itemTotal)} đ
                                             </div>
                                             <div style={{
-                                                padding: '8px 6px', // Giảm padding
-                                                fontSize: '12px', // Giảm font size
-                                                color: '#64748b'
+                                                padding: '8px 6px',
+                                                fontSize: '11px',
+                                                color: item.productId && item.warehouseId && stockInfo[`${item.productId}_${item.warehouseId}`] 
+                                                    ? (stockInfo[`${item.productId}_${item.warehouseId}`].available >= (item.quantity || 0) ? '#10b981' : '#ef4444')
+                                                    : '#64748b'
                                             }}>
-                                                {product ? (product.unit || product.Unit || '') : ''}
+                                                {item.productId && item.warehouseId && stockInfo[`${item.productId}_${item.warehouseId}`] 
+                                                    ? `Stock: ${stockInfo[`${item.productId}_${item.warehouseId}`].available}`
+                                                    : ''
+                                                }
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() => handleRemoveProduct(index)}
                                                 style={{
-                                                    padding: '6px', // Giảm padding
+                                                    padding: '6px',
                                                     background: '#fee2e2',
                                                     color: '#dc2626',
                                                     border: 'none',
@@ -789,7 +1172,7 @@ const COrder = ({ onOrderCreated }) => {
                                                     height: '32px'
                                                 }}
                                             >
-                                                <Icons.Delete size={14} /> {/* Giảm icon size */}
+                                                <Icons.Delete size={14} />
                                             </button>
                                         </div>
                                     );

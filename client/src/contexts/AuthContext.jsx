@@ -97,9 +97,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         // Only check expiration, don't fail if expired (let server decide)
-        if (isTokenExpired(storedToken)) {
-            logger.debug('Token expired, attempting to verify with server');
-        }
+        // Removed debug log to reduce console spam
 
         try {
             const response = await authAPI.verify();
@@ -273,12 +271,7 @@ export const AuthProvider = ({ children }) => {
 
         // State might not be updated yet, but localStorage is the source of truth
         // The component will re-render and check localStorage
-        logger.debug('Login state saved successfully', {
-            hasToken: !!currentToken,
-            hasUser: !!currentUser,
-            tokenLength: currentToken.length,
-            userLength: currentUser.length
-        });
+        // Removed debug log to reduce console spam
 
         return { success: true };
     }, []);
@@ -286,16 +279,11 @@ export const AuthProvider = ({ children }) => {
     const login = useCallback(async (email, password, rememberMe = false) => {
         try {
             setError(null);
-            logger.debug('Login attempt', { email });
+            // Removed debug logs to reduce console spam
 
             const response = await authAPI.login(email, password);
 
-            logger.debug('Login API response', {
-                success: response.data?.success,
-                hasData: !!response.data?.data,
-                hasToken: !!response.data?.data?.token,
-                hasUser: !!response.data?.data?.user
-            });
+            // Removed debug logs to reduce console spam
 
             // Response structure: response.data.data contains { user, token, roles }
             const loginData = response.data.data || response.data;
@@ -314,11 +302,7 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('Invalid login data: missing token or user');
             }
 
-            logger.debug('Calling handleLoginResponse', {
-                hasToken: !!loginData.token,
-                hasUser: !!loginData.user,
-                userId: loginData.user?.id || loginData.user?.Id
-            });
+            // Removed debug log to reduce console spam
 
             return await handleLoginResponse(loginData, rememberMe);
         } catch (error) {
@@ -338,18 +322,8 @@ export const AuthProvider = ({ children }) => {
         const hasUser = !!(user || localStorage.getItem('user'));
         const isAuth = hasToken && hasUser;
 
-        // Debug logging (only in development)
-        if (import.meta.env.DEV) {
-            logger.debug('isAuthenticated check', {
-                hasToken,
-                hasUser,
-                isAuth,
-                token: !!token,
-                user: !!user,
-                localStorageToken: !!localStorage.getItem('token'),
-                localStorageUser: !!localStorage.getItem('user')
-            });
-        }
+        // Removed verbose debug logging to reduce console spam
+        // Only log errors or important state changes if needed
 
         return isAuth;
     }, [token, user]);
@@ -488,7 +462,7 @@ export const AuthProvider = ({ children }) => {
                 throw new Error('Invalid response from server');
             }
 
-            logger.debug('Google login successful:', loginData);
+            // Removed debug log to reduce console spam
 
             return await handleLoginResponse(loginData, rememberMe);
         } catch (error) {

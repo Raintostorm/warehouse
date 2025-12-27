@@ -6,8 +6,8 @@ import { Icons } from '../src/utils/icons';
 import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
-import FileManager from './FileManager';
-import Modal from '../src/components/Modal';
+import WarehouseView from './WarehouseView';
+import UWarehouse from './UWarehouse';
 
 const WarehouseL = () => {
     const { hasRole } = useRole();
@@ -16,12 +16,12 @@ const WarehouseL = () => {
     const [warehouses, setWarehouses] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [_editingId, setEditingId] = useState(null);
+    const [editingId, setEditingId] = useState(null);
+    const [viewingId, setViewingId] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
-    const [fileManagerModal, setFileManagerModal] = useState({ isOpen: false, warehouseId: null });
 
     useEffect(() => {
         fetchWarehouses();
@@ -298,7 +298,7 @@ const WarehouseL = () => {
                                         <td style={{ padding: '14px 16px' }}>
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                                 <button
-                                                    onClick={() => setFileManagerModal({ isOpen: true, warehouseId: warehouse.id })}
+                                                    onClick={() => setViewingId(warehouse.id)}
                                                     style={{
                                                         padding: '6px 12px',
                                                         background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
@@ -306,16 +306,16 @@ const WarehouseL = () => {
                                                         border: 'none',
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
-                                                        fontSize: '12px',
+                                                        fontSize: '13px',
                                                         fontWeight: '500',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         gap: '4px'
                                                     }}
-                                                    title="Manage Images"
+                                                    title="View warehouse inventory and images"
                                                 >
-                                                    <Icons.File size={14} />
-                                                    Images
+                                                    <Icons.Search size={16} />
+                                                    View
                                                 </button>
                                                 <button
                                                     onClick={() => setEditingId(warehouse.id)}
@@ -327,25 +327,34 @@ const WarehouseL = () => {
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
                                                         fontSize: '13px',
-                                                        fontWeight: '500'
+                                                        fontWeight: '500',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
                                                     }}
+                                                    title="Edit warehouse properties"
                                                 >
-                                                    <Icons.Edit size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Edit
+                                                    <Icons.Edit size={16} />
+                                                    Edit
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(warehouse.id)}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
                                                         color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
                                                         fontSize: '13px',
-                                                        fontWeight: '500'
+                                                        fontWeight: '500',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
                                                     }}
                                                 >
-                                                    <Icons.Delete size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Xóa
+                                                    <Icons.Delete size={16} />
+                                                    Xóa
                                                 </button>
                                             </div>
                                         </td>
@@ -375,21 +384,22 @@ const WarehouseL = () => {
                 type="danger"
             />
 
-            {fileManagerModal.isOpen && (
-                <Modal
-                    isOpen={fileManagerModal.isOpen}
-                    onClose={() => setFileManagerModal({ isOpen: false, warehouseId: null })}
-                    title={`Manage Images - Warehouse ${fileManagerModal.warehouseId}`}
-                    size="large"
-                >
-                    <FileManager
-                        entityType="warehouse"
-                        entityId={fileManagerModal.warehouseId}
-                        uploadType="warehouse_image"
-                        onRefresh={fetchWarehouses}
-                        showImagesOnly={true}
-                    />
-                </Modal>
+            {viewingId && (
+                <WarehouseView
+                    warehouseId={viewingId}
+                    onClose={() => setViewingId(null)}
+                />
+            )}
+
+            {editingId && (
+                <UWarehouse
+                    warehouseId={editingId}
+                    onWarehouseUpdated={() => {
+                        fetchWarehouses();
+                        setEditingId(null);
+                    }}
+                    onClose={() => setEditingId(null)}
+                />
             )}
         </div>
     );

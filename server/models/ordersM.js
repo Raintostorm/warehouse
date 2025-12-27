@@ -20,9 +20,19 @@ const OrdersM = {
     create: async (order) => {
         // Handle both PascalCase and snake_case column names
         // Database has user_id column (not uid or u_id)
+        // Now supports supplier_id for import orders
         const result = await db.query(
-            'INSERT INTO orders (id, type, date, user_id, customer_name, total, actor) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-            [order.id, order.type, order.date, order.uId || order.u_id || order.uid || order.user_id, order.customerName || order.customer_name, order.total, order.actor]
+            'INSERT INTO orders (id, type, date, user_id, customer_name, supplier_id, total, actor) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+            [
+                order.id, 
+                order.type, 
+                order.date, 
+                order.uId || order.u_id || order.uid || order.user_id, 
+                order.customerName || order.customer_name, 
+                order.supplierId || order.supplier_id || null,
+                order.total, 
+                order.actor
+            ]
         );
         return result.rows[0];
     },
@@ -49,6 +59,11 @@ const OrdersM = {
         if (order.customerName !== undefined) {
             updates.push(`customer_name = $${paramCount}`);
             values.push(order.customerName);
+            paramCount++;
+        }
+        if (order.supplierId !== undefined || order.supplier_id !== undefined) {
+            updates.push(`supplier_id = $${paramCount}`);
+            values.push(order.supplierId || order.supplier_id);
             paramCount++;
         }
         if (order.total !== undefined) {

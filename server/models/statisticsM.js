@@ -1,5 +1,6 @@
 const db = require('../db');
 const { queryWithFallback } = require('../utils/dbHelper');
+const logger = require('../utils/logger');
 
 const StatisticsM = {
     // Tổng số lượng
@@ -36,59 +37,125 @@ const StatisticsM = {
 
     // Doanh thu
     getRevenue: async () => {
-        // Tổng doanh thu
+        // Tổng doanh thu - chỉ tính các order sale đã thanh toán (có bill status = 'paid')
+        // Support cả bills.order_id và bill_orders junction table
         const totalRevenue = await queryWithFallback(
-            `SELECT COALESCE(SUM(total), 0) as total 
-            FROM orders 
-            WHERE type = 'Sale' OR type = 'Sell'`,
-            `SELECT COALESCE(SUM("Total"), 0) as total 
-            FROM "Orders" 
-            WHERE "Type" = 'Sale' OR "Type" = 'Sell'`
+            `SELECT COALESCE(SUM(o.total), 0) as total 
+            FROM orders o
+            WHERE (o.type = 'Sale' OR o.type = 'Sell')
+            AND EXISTS (
+                SELECT 1 FROM bills b 
+                WHERE (b.order_id = o.id OR EXISTS (
+                    SELECT 1 FROM bill_orders bo 
+                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
+                ))
+                AND b.status = 'paid'
+            )`,
+            `SELECT COALESCE(SUM(o."Total"), 0) as total 
+            FROM "Orders" o
+            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell')
+            AND EXISTS (
+                SELECT 1 FROM "Bills" b 
+                WHERE (b."OrderId" = o."Id" OR EXISTS (
+                    SELECT 1 FROM "BillOrders" bo 
+                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
+                ))
+                AND b."Status" = 'paid'
+            )`
         );
 
-        // Doanh thu hôm nay
-        const todayRevenue = await queryWithFallback(
-            `SELECT COALESCE(SUM(total), 0) as total 
-            FROM orders 
-            WHERE (type = 'Sale' OR type = 'Sell') 
-            AND DATE(date) = CURRENT_DATE`,
-            `SELECT COALESCE(SUM("Total"), 0) as total 
-            FROM "Orders" 
-            WHERE ("Type" = 'Sale' OR "Type" = 'Sell') 
-            AND DATE("Date") = CURRENT_DATE`
-        );
+        // Doanh thu hôm nay - chỉ tính các order sale đã thanh toán
+        // Thử query đơn giản trước với bills.order_id
+        let todayRevenue;
+        try {
+            todayRevenue = await queryWithFallback(
+                `SELECT COALESCE(SUM(o.total), 0) as total 
+                FROM orders o
+                INNER JOIN bills b ON o.id = b.order_id
+                WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell') 
+                AND DATE(o.date) = CURRENT_DATE
+                AND LOWER(b.status) = 'paid'`,
+                `SELECT COALESCE(SUM(o."Total"), 0) as total 
+                FROM "Orders" o
+                INNER JOIN "Bills" b ON o."Id" = b."OrderId"
+                WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell') 
+                AND DATE(o."Date") = CURRENT_DATE
+                AND LOWER(b."Status") = 'paid'`
+            );
+            const todayAmount = parseFloat(todayRevenue.rows[0]?.total || 0);
+            logger.info('Today revenue query result', { 
+                total: todayAmount, 
+                rowCount: todayRevenue.rows.length,
+                currentDate: new Date().toISOString().split('T')[0]
+            });
+        } catch (error) {
+            logger.error('Error calculating today revenue', { error: error.message, stack: error.stack });
+            todayRevenue = { rows: [{ total: 0 }] };
+        }
 
-        // Doanh thu tháng này
+        // Doanh thu tháng này - chỉ tính các order sale đã thanh toán
         const monthRevenue = await queryWithFallback(
-            `SELECT COALESCE(SUM(total), 0) as total 
-            FROM orders 
-            WHERE (type = 'Sale' OR type = 'Sell') 
-            AND EXTRACT(MONTH FROM date) = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM date) = EXTRACT(YEAR FROM CURRENT_DATE)`,
-            `SELECT COALESCE(SUM("Total"), 0) as total 
-            FROM "Orders" 
-            WHERE ("Type" = 'Sale' OR "Type" = 'Sell') 
-            AND EXTRACT(MONTH FROM "Date") = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM "Date") = EXTRACT(YEAR FROM CURRENT_DATE)`
+            `SELECT COALESCE(SUM(o.total), 0) as total 
+            FROM orders o
+            WHERE (o.type = 'Sale' OR o.type = 'Sell') 
+            AND EXTRACT(MONTH FROM o.date) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM o.date) = EXTRACT(YEAR FROM CURRENT_DATE)
+            AND EXISTS (
+                SELECT 1 FROM bills b 
+                WHERE (b.order_id = o.id OR EXISTS (
+                    SELECT 1 FROM bill_orders bo 
+                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
+                ))
+                AND b.status = 'paid'
+            )`,
+            `SELECT COALESCE(SUM(o."Total"), 0) as total 
+            FROM "Orders" o
+            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell') 
+            AND EXTRACT(MONTH FROM o."Date") = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM o."Date") = EXTRACT(YEAR FROM CURRENT_DATE)
+            AND EXISTS (
+                SELECT 1 FROM "Bills" b 
+                WHERE (b."OrderId" = o."Id" OR EXISTS (
+                    SELECT 1 FROM "BillOrders" bo 
+                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
+                ))
+                AND b."Status" = 'paid'
+            )`
         );
 
-        // Doanh thu theo tháng (12 tháng gần nhất)
+        // Doanh thu theo tháng (12 tháng gần nhất) - chỉ tính các order sale đã thanh toán
         const revenueByMonth = await queryWithFallback(
             `SELECT 
-                TO_CHAR(date, 'YYYY-MM') as month,
-                COALESCE(SUM(total), 0) as revenue
-            FROM orders
-            WHERE (type = 'Sale' OR type = 'Sell')
-            AND date >= CURRENT_DATE - INTERVAL '12 months'
-            GROUP BY TO_CHAR(date, 'YYYY-MM')
+                TO_CHAR(o.date, 'YYYY-MM') as month,
+                COALESCE(SUM(o.total), 0) as revenue
+            FROM orders o
+            WHERE (o.type = 'Sale' OR o.type = 'Sell')
+            AND o.date >= CURRENT_DATE - INTERVAL '12 months'
+            AND EXISTS (
+                SELECT 1 FROM bills b 
+                WHERE (b.order_id = o.id OR EXISTS (
+                    SELECT 1 FROM bill_orders bo 
+                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
+                ))
+                AND b.status = 'paid'
+            )
+            GROUP BY TO_CHAR(o.date, 'YYYY-MM')
             ORDER BY month ASC`,
             `SELECT 
-                TO_CHAR("Date", 'YYYY-MM') as month,
-                COALESCE(SUM("Total"), 0) as revenue
-            FROM "Orders"
-            WHERE ("Type" = 'Sale' OR "Type" = 'Sell')
-            AND "Date" >= CURRENT_DATE - INTERVAL '12 months'
-            GROUP BY TO_CHAR("Date", 'YYYY-MM')
+                TO_CHAR(o."Date", 'YYYY-MM') as month,
+                COALESCE(SUM(o."Total"), 0) as revenue
+            FROM "Orders" o
+            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell')
+            AND o."Date" >= CURRENT_DATE - INTERVAL '12 months'
+            AND EXISTS (
+                SELECT 1 FROM "Bills" b 
+                WHERE (b."OrderId" = o."Id" OR EXISTS (
+                    SELECT 1 FROM "BillOrders" bo 
+                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
+                ))
+                AND b."Status" = 'paid'
+            )
+            GROUP BY TO_CHAR(o."Date", 'YYYY-MM')
             ORDER BY month ASC`
         );
 
@@ -116,21 +183,42 @@ const StatisticsM = {
         return parseInt(result.rows[0].count);
     },
 
-    // Sản phẩm tồn kho thấp (dưới 10)
-    getLowStockProducts: async () => {
+    // Sản phẩm tồn kho thấp (dưới 10, bao gồm cả tồn kho = 0)
+    getLowStockProducts: async (threshold = 10) => {
         const result = await queryWithFallback(
-            `SELECT id, name, number, unit, price
-            FROM products
-            WHERE number < 10
-            ORDER BY number ASC
-            LIMIT 10`,
-            `SELECT "Id" as id, "Name" as name, "Number" as number, "Unit" as unit, "Price" as price
-            FROM "Products"
-            WHERE "Number" < 10
-            ORDER BY "Number" ASC
-            LIMIT 10`
+            `SELECT 
+                p.id,
+                p.name,
+                p.unit,
+                p.price,
+                COALESCE(SUM(COALESCE(pd.number, 0)), 0) as total_stock
+            FROM products p
+            LEFT JOIN product_details pd ON p.id = pd.pid
+            GROUP BY p.id, p.name, p.unit, p.price
+            HAVING COALESCE(SUM(COALESCE(pd.number, 0)), 0) <= $1
+            ORDER BY total_stock ASC
+            LIMIT 20`,
+            `SELECT 
+                p."Id" as id,
+                p."Name" as name,
+                p."Unit" as unit,
+                p."Price" as price,
+                COALESCE(SUM(COALESCE(pd."Number", 0)), 0) as total_stock
+            FROM "Products" p
+            LEFT JOIN "ProductDetails" pd ON p."Id" = pd."Pid"
+            GROUP BY p."Id", p."Name", p."Unit", p."Price"
+            HAVING COALESCE(SUM(COALESCE(pd."Number", 0)), 0) <= $1
+            ORDER BY total_stock ASC
+            LIMIT 20`,
+            [threshold]
         );
-        return result.rows;
+        return result.rows.map(row => ({
+            id: row.id,
+            name: row.name,
+            number: parseInt(row.total_stock) || 0,
+            unit: row.unit,
+            price: row.price
+        }));
     },
 
     // Top sản phẩm bán chạy (theo order_details)
@@ -194,26 +282,42 @@ const StatisticsM = {
         return result.rows;
     },
 
-    // Doanh thu theo ngày (7 ngày gần nhất)
+    // Doanh thu theo ngày (7 ngày gần nhất) - chỉ tính các order sale đã thanh toán
     getRevenueByDay: async (days = 7) => {
         const result = await queryWithFallback(
             `SELECT 
-                DATE(date) as day,
-                COALESCE(SUM(total), 0) as revenue,
+                DATE(o.date) as day,
+                COALESCE(SUM(o.total), 0) as revenue,
                 COUNT(*) as order_count
-            FROM orders
-            WHERE (type = 'Sale' OR type = 'Sell')
-            AND date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-            GROUP BY DATE(date)
+            FROM orders o
+            WHERE (o.type = 'Sale' OR o.type = 'Sell')
+            AND o.date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+            AND EXISTS (
+                SELECT 1 FROM bills b 
+                WHERE (b.order_id = o.id OR EXISTS (
+                    SELECT 1 FROM bill_orders bo 
+                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
+                ))
+                AND b.status = 'paid'
+            )
+            GROUP BY DATE(o.date)
             ORDER BY day ASC`,
             `SELECT 
-                DATE("Date") as day,
-                COALESCE(SUM("Total"), 0) as revenue,
+                DATE(o."Date") as day,
+                COALESCE(SUM(o."Total"), 0) as revenue,
                 COUNT(*) as order_count
-            FROM "Orders"
-            WHERE ("Type" = 'Sale' OR "Type" = 'Sell')
-            AND "Date" >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-            GROUP BY DATE("Date")
+            FROM "Orders" o
+            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell')
+            AND o."Date" >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+            AND EXISTS (
+                SELECT 1 FROM "Bills" b 
+                WHERE (b."OrderId" = o."Id" OR EXISTS (
+                    SELECT 1 FROM "BillOrders" bo 
+                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
+                ))
+                AND b."Status" = 'paid'
+            )
+            GROUP BY DATE(o."Date")
             ORDER BY day ASC`,
             [days]
         );

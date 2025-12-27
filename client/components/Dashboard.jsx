@@ -49,11 +49,11 @@ const Dashboard = () => {
         fetchStats();
     }, []);
 
-    const fetchStats = async () => {
+    const fetchStats = async (refresh = false) => {
         try {
             setLoading(true);
             setError(null);
-            const response = await statisticsAPI.getDashboardStats();
+            const response = await statisticsAPI.getDashboardStats(refresh);
             if (response.success) {
                 setStats(response.data);
             } else {
@@ -198,7 +198,7 @@ const Dashboard = () => {
                     </p>
                 </div>
                 <button
-                    onClick={fetchStats}
+                    onClick={() => fetchStats(true)}
                     aria-label="Refresh dashboard statistics"
                     tabIndex={0}
                     style={{
@@ -226,7 +226,7 @@ const Dashboard = () => {
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            fetchStats();
+                            fetchStats(true);
                         }
                     }}
                 >

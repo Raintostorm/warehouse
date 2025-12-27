@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
 import DateRangePicker from './DateRangePicker';
 import ChartFilters from './ChartFilters';
@@ -14,6 +15,8 @@ import SupplierAnalyticsChart from './charts/SupplierAnalyticsChart';
 
 const AnalyticsDashboard = () => {
     const { isDark } = useTheme();
+    const { error: showError } = useToast();
+    const [error, setError] = useState(null);
     const [startDate, setStartDate] = useState(null);
     const [endDate, setEndDate] = useState(null);
     const [period, setPeriod] = useState('month');
@@ -33,6 +36,49 @@ const AnalyticsDashboard = () => {
         { id: 'customers', label: 'Khách Hàng', icon: Icons.Users },
         { id: 'suppliers', label: 'Nhà Cung Cấp', icon: Icons.Supplier }
     ];
+
+    useEffect(() => {
+        // Reset error when component mounts
+        setError(null);
+    }, []);
+
+    // Error boundary fallback
+    if (error) {
+        return (
+            <div style={{ padding: '20px' }}>
+                <div style={{
+                    background: isDark ? '#1e293b' : 'white',
+                    borderRadius: '12px',
+                    padding: '24px',
+                    border: `1px solid ${isDark ? '#334155' : '#e5e7eb'}`,
+                    textAlign: 'center'
+                }}>
+                    <h2 style={{ color: '#ef4444', marginBottom: '16px' }}>Lỗi khi tải Analytics Dashboard</h2>
+                    <p style={{ color: isDark ? '#cbd5e1' : '#64748b', marginBottom: '16px' }}>
+                        {error.message || 'Đã xảy ra lỗi không xác định'}
+                    </p>
+                    <button
+                        onClick={() => {
+                            setError(null);
+                            window.location.reload();
+                        }}
+                        style={{
+                            padding: '10px 20px',
+                            background: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                        }}
+                    >
+                        Tải lại trang
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ padding: '20px' }}>
@@ -173,7 +219,9 @@ const AnalyticsDashboard = () => {
                                 <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px' }}>
                                     Xu Hướng Doanh Thu
                                 </h3>
-                                <RevenueChart period={period} startDate={startDate} endDate={endDate} />
+                                <ErrorBoundary>
+                                    <RevenueChart period={period} startDate={startDate} endDate={endDate} />
+                                </ErrorBoundary>
                             </div>
                             <div style={{
                                 background: isDark ? '#1e293b' : 'white',
@@ -190,7 +238,9 @@ const AnalyticsDashboard = () => {
                                     sortBy={sortBy}
                                     onSortByChange={setSortBy}
                                 />
-                                <ProductPerformanceChart limit={limit} sortBy={sortBy} />
+                                <ErrorBoundary>
+                                    <ProductPerformanceChart limit={limit} sortBy={sortBy} />
+                                </ErrorBoundary>
                             </div>
                         </div>
                     </div>
@@ -215,7 +265,9 @@ const AnalyticsDashboard = () => {
                             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px' }}>
                                 Xu Hướng Bán Hàng
                             </h3>
-                            <SalesTrendChart period={period} startDate={startDate} endDate={endDate} />
+                            <ErrorBoundary>
+                                <SalesTrendChart period={period} startDate={startDate} endDate={endDate} />
+                            </ErrorBoundary>
                         </div>
                         <div style={{
                             background: isDark ? '#1e293b' : 'white',
@@ -275,7 +327,9 @@ const AnalyticsDashboard = () => {
                                 <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px' }}>
                                     Sử Dụng Kho
                                 </h3>
-                                <WarehouseUtilizationChart />
+                                <ErrorBoundary>
+                                    <WarehouseUtilizationChart />
+                                </ErrorBoundary>
                             </div>
                             <div style={{
                                 background: isDark ? '#1e293b' : 'white',
@@ -290,7 +344,9 @@ const AnalyticsDashboard = () => {
                                     days={days}
                                     onDaysChange={setDays}
                                 />
-                                <InventoryTurnoverChart days={days} />
+                                <ErrorBoundary>
+                                    <InventoryTurnoverChart days={days} />
+                                </ErrorBoundary>
                             </div>
                         </div>
                     </div>
@@ -314,7 +370,9 @@ const AnalyticsDashboard = () => {
                             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px' }}>
                                 Top Khách Hàng
                             </h3>
-                            <CustomerAnalyticsChart days={days} />
+                            <ErrorBoundary>
+                                <CustomerAnalyticsChart days={days} />
+                            </ErrorBoundary>
                         </div>
                     </div>
                 )}
@@ -333,7 +391,9 @@ const AnalyticsDashboard = () => {
                             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '20px' }}>
                                 Top Nhà Cung Cấp
                             </h3>
-                            <SupplierAnalyticsChart />
+                            <ErrorBoundary>
+                                <SupplierAnalyticsChart />
+                            </ErrorBoundary>
                         </div>
                     </div>
                 )}
@@ -341,6 +401,54 @@ const AnalyticsDashboard = () => {
         </div>
     );
 };
+
+// Simple Error Boundary Component
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error, errorInfo) {
+        console.error('Chart Error:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    color: '#64748b',
+                    fontSize: '14px'
+                }}>
+                    <p>Không thể tải biểu đồ này</p>
+                    <button
+                        onClick={() => this.setState({ hasError: false, error: null })}
+                        style={{
+                            marginTop: '12px',
+                            padding: '8px 16px',
+                            background: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                        }}
+                    >
+                        Thử lại
+                    </button>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
 
 export default AnalyticsDashboard;
 

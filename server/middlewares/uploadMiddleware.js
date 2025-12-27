@@ -5,7 +5,8 @@ const logger = require('../utils/logger');
 
 // Configuration
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024; // 5MB default
-const ALLOWED_IMAGE_TYPES = (process.env.ALLOWED_IMAGE_TYPES || 'jpg,jpeg,png,gif,webp').split(',').map(t => t.trim());
+// Support all common image formats
+const ALLOWED_IMAGE_TYPES = (process.env.ALLOWED_IMAGE_TYPES || 'jpg,jpeg,png,gif,webp,bmp,svg,ico,tiff,tif,heic,heif,avif,jfif,jp2,jpx').split(',').map(t => t.trim());
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './uploads';
 
 // Ensure upload directory exists
@@ -35,11 +36,18 @@ const storage = multer.diskStorage({
 
 // File filter for images
 const imageFilter = (req, file, cb) => {
+    // Accept if MIME type starts with 'image/' (supports all image formats)
+    if (file.mimetype && file.mimetype.startsWith('image/')) {
+        cb(null, true);
+        return;
+    }
+    
+    // Also check extension as fallback
     const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
     if (ALLOWED_IMAGE_TYPES.includes(ext)) {
         cb(null, true);
     } else {
-        cb(new Error(`Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')}`), false);
+        cb(new Error(`Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.join(', ')} or any image/* MIME type`), false);
     }
 };
 

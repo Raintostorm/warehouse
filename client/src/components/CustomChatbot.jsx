@@ -3,6 +3,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { chatbotAPI } from '../../services/api';
 import { useToast } from '../contexts/ToastContext';
 import LoadingSpinner from './LoadingSpinner';
+import { Icons } from '../utils/icons';
 
 /**
  * Custom Chatbot Component - Chatbot riêng biệt với khả năng thực hiện actions
@@ -212,7 +213,7 @@ const CustomChatbot = () => {
                 onClick={() => setIsOpen(true)}
                 style={{
                     position: 'fixed',
-                    bottom: '100px', // Position above AIChat
+                    bottom: '24px',
                     right: '24px',
                     width: '60px',
                     height: '60px',
@@ -226,8 +227,7 @@ const CustomChatbot = () => {
                     alignItems: 'center',
                     justifyContent: 'center',
                     zIndex: 1000,
-                    transition: 'all 0.3s ease',
-                    fontSize: '28px'
+                    transition: 'all 0.3s ease'
                 }}
                 onMouseEnter={(e) => {
                     e.target.style.transform = 'scale(1.1)';
@@ -239,7 +239,20 @@ const CustomChatbot = () => {
                 }}
                 title="Mở Custom Chatbot"
             >
-                🤖
+                <svg 
+                    width="28" 
+                    height="28" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                >
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    <line x1="8" y1="9" x2="16" y2="9" />
+                    <line x1="8" y1="13" x2="14" y2="13" />
+                </svg>
             </button>
         );
     }

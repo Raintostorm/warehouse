@@ -161,7 +161,27 @@ const InventoryS = {
     },
 
     /**
+     * Validate stock availability
+     */
+    validateStockAvailability: async (productId, warehouseId, requestedQuantity) => {
+        try {
+            const currentStock = await InventoryS.getCurrentStock(productId, warehouseId);
+            return {
+                isValid: currentStock >= requestedQuantity,
+                available: currentStock,
+                requested: requestedQuantity,
+                shortage: Math.max(0, requestedQuantity - currentStock)
+            };
+        } catch (error) {
+            logger.error('Error validating stock availability', { error: error.message, productId, warehouseId });
+            throw error;
+        }
+    },
+
+    /**
      * Adjust stock manually (for corrections)
+     * NOTE: Manual adjustments should be restricted - only allow via orders
+     * This method is kept for emergency corrections but should be used with caution
      */
     adjustStock: async (productId, warehouseId, newQuantity, notes = null) => {
         try {

@@ -6,6 +6,7 @@ import { Icons } from '../src/utils/icons';
 import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
+import SupplierImportHistory from './SupplierImportHistory';
 
 const SupplierL = () => {
     const { hasRole } = useRole();
@@ -14,11 +15,11 @@ const SupplierL = () => {
     const [suppliers, setSuppliers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [_editingId, setEditingId] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
+    const [historyModal, setHistoryModal] = useState({ isOpen: false, supplierId: null, supplierName: '' });
 
     useEffect(() => {
         fetchSuppliers();
@@ -291,11 +292,11 @@ const SupplierL = () => {
                                         <td style={{ padding: '14px 16px' }}>
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                                 <button
-                                                    onClick={() => setEditingId(supplier.id)}
+                                                    onClick={() => setHistoryModal({ isOpen: true, supplierId: supplier.id, supplierName: supplier.name })}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: '#000',
+                                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                        color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
@@ -303,7 +304,7 @@ const SupplierL = () => {
                                                         fontWeight: '500'
                                                     }}
                                                 >
-                                                    <Icons.Edit size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Edit
+                                                    <Icons.History size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Lịch sử
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(supplier.id)}
@@ -347,6 +348,13 @@ const SupplierL = () => {
                 cancelText="Hủy"
                 type="danger"
             />
+            {historyModal.isOpen && (
+                <SupplierImportHistory
+                    supplierId={historyModal.supplierId}
+                    supplierName={historyModal.supplierName}
+                    onClose={() => setHistoryModal({ isOpen: false, supplierId: null, supplierName: '' })}
+                />
+            )}
         </div>
     );
 };
