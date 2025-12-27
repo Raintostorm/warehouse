@@ -13,5 +13,7 @@ module.exports = {
     verbose: true,
     testTimeout: 30000, // Increased timeout for database operations
     maxWorkers: 1, // Run tests serially to avoid database deadlocks
-    setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js']
+    setupFilesAfterEnv: ['<rootDir>/__tests__/setup.js'],
+    forceExit: true, // Force Jest to exit after tests complete
+    detectOpenHandles: true // Detect open handles to help debug
 };

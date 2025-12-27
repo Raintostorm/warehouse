@@ -69,3 +69,20 @@ if (process.env.SILENT_TESTS === 'true') {
         error: jest.fn(),
     };
 }
+
+// Global cleanup after all tests
+// Note: This runs after all test suites complete
+if (typeof afterAll !== 'undefined') {
+    afterAll(async () => {
+        // Close database pool
+        const db = require('../db');
+        try {
+            if (db.pool && typeof db.pool.end === 'function') {
+                await db.pool.end();
+            }
+        } catch (error) {
+            // Ignore errors when closing pool
+            console.warn('Error closing database pool in global teardown:', error.message);
+        }
+    }, 5000); // 5 second timeout for cleanup
+}
