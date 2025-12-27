@@ -86,11 +86,13 @@ const TABLES = {
             date DATE,
             user_id VARCHAR(10),
             customer_name TEXT,
+            supplier_id VARCHAR(10),
             total NUMERIC(14,2) DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             actor TEXT,
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL
         )
     `,
     order_details: `
@@ -340,6 +342,27 @@ async function createTables() {
         } catch (error) {
             console.error(`Loi khi tao table ${tableName}: `, error.message);
         }
+    }
+
+    // Add supplier_id column to orders table if it doesn't exist
+    try {
+        await db.query(`
+            DO $$ 
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'orders' AND column_name = 'supplier_id'
+                ) THEN
+                    ALTER TABLE orders ADD COLUMN supplier_id VARCHAR(10);
+                    ALTER TABLE orders ADD CONSTRAINT fk_orders_supplier 
+                        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL;
+                    CREATE INDEX IF NOT EXISTS idx_orders_supplier_id ON orders(supplier_id);
+                END IF;
+            END $$;
+        `);
+        console.log('✅ Đã kiểm tra/ thêm supplier_id vào orders table');
+    } catch (error) {
+        console.warn('⚠️  Warning khi thêm supplier_id vào orders:', error.message);
     }
 
     // Add inventory columns to products table if they don't exist
