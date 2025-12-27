@@ -39,6 +39,7 @@ describe('Products Model CRUD Operations', () => {
             const minimalProduct = {
                 id: generateId('P', 10),
                 name: 'Test Product',
+                number: 0, // Required field - default to 0
                 actor: 'test'
             };
 
