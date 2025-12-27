@@ -142,8 +142,9 @@ describe('Comprehensive CRUD Test Suite', () => {
             const userData = testUsers.create();
             const user = await UsersM.create(userData);
 
-            // CREATE
-            const orderData = testOrders.create(user.id);
+            // CREATE - Create supplier first for Import order
+            const supplier = await SuppliersM.create(testSuppliers.create());
+            const orderData = testOrders.create(user.id, supplier.id);
             const createdOrder = await OrdersM.create(orderData);
             expect(createdOrder.id).toBe(orderData.id);
 
@@ -192,8 +193,8 @@ describe('Comprehensive CRUD Test Suite', () => {
             const product = await ProductsM.create(testProducts.create(supplier.id));
             const warehouse = await WarehousesM.create(testWarehouses.create());
 
-            // Create order
-            const order = await OrdersM.create(testOrders.create(user.id));
+            // Create order - Import orders need supplier_id
+            const order = await OrdersM.create(testOrders.create(user.id, supplier.id));
             expect(order).toBeDefined();
             // Check all possible field name variations (snake_case, camelCase, PascalCase)
             // Database schema uses PascalCase (UId) but model may return snake_case (user_id)

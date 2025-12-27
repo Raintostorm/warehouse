@@ -93,12 +93,14 @@ const testWarehouses = {
 };
 
 const testOrders = {
-    create: (userId) => ({
+    create: (userId, supplierId) => ({
         id: generateId('O', 15), // Orders can be up to 15 chars
         type: 'Import',
         date: new Date().toISOString().split('T')[0],
         userId: userId || generateId('U', 10), // Will be mapped to user_id or UId in model
         user_id: userId || generateId('U', 10), // Also provide snake_case version
+        supplierId: supplierId || null, // Required for Import orders
+        supplier_id: supplierId || null,
         customerName: 'Test Customer',
         total: 1000.00,
         actor: 'test'

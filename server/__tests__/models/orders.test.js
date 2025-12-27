@@ -1,10 +1,12 @@
 const OrdersM = require('../../models/ordersM');
 const UsersM = require('../../models/usersM');
+const SuppliersM = require('../../models/suppliersM');
 const { cleanDatabase, initTestDatabase } = require('../helpers/testDb');
-const { testOrders, testUsers, generateId } = require('../helpers/testData');
+const { testOrders, testUsers, testSuppliers, generateId } = require('../helpers/testData');
 
 describe('Orders Model CRUD Operations', () => {
     let testUser;
+    let testSupplier;
 
     beforeAll(async () => {
         await initTestDatabase();
@@ -16,6 +18,9 @@ describe('Orders Model CRUD Operations', () => {
         // Create a user for orders
         const userData = testUsers.create();
         testUser = await UsersM.create(userData);
+        // Create a supplier for Import orders
+        const supplierData = testSuppliers.create();
+        testSupplier = await SuppliersM.create(supplierData);
     });
 
     afterEach(async () => {
@@ -24,7 +29,7 @@ describe('Orders Model CRUD Operations', () => {
 
     describe('CREATE', () => {
         test('should create a new order', async () => {
-            const orderData = testOrders.create(testUser.id);
+            const orderData = testOrders.create(testUser.id, testSupplier.id);
             const order = await OrdersM.create(orderData);
 
             expect(order).toBeDefined();
@@ -34,10 +39,11 @@ describe('Orders Model CRUD Operations', () => {
         });
 
         test('should create order with minimal fields (database allows NULL)', async () => {
-            // Database schema allows NULL for most fields, so this will succeed
+            // Import orders require supplier_id, so add it
             const minimalOrder = {
                 id: generateId('O', 15),
                 type: 'Import',
+                supplier_id: testSupplier.id,
                 actor: 'test'
             };
 
@@ -50,8 +56,8 @@ describe('Orders Model CRUD Operations', () => {
 
     describe('READ', () => {
         test('should find all orders', async () => {
-            const order1 = testOrders.create(testUser.id);
-            const order2 = testOrders.create(testUser.id);
+            const order1 = testOrders.create(testUser.id, testSupplier.id);
+            const order2 = testOrders.create(testUser.id, testSupplier.id);
             await OrdersM.create(order1);
             await OrdersM.create(order2);
 
@@ -62,7 +68,7 @@ describe('Orders Model CRUD Operations', () => {
         });
 
         test('should find order by id', async () => {
-            const orderData = testOrders.create(testUser.id);
+            const orderData = testOrders.create(testUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const foundOrder = await OrdersM.findById(createdOrder.id);
@@ -79,7 +85,7 @@ describe('Orders Model CRUD Operations', () => {
 
     describe('UPDATE', () => {
         test('should update order', async () => {
-            const orderData = testOrders.create(testUser.id);
+            const orderData = testOrders.create(testUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const updateData = testOrders.update();
@@ -91,7 +97,7 @@ describe('Orders Model CRUD Operations', () => {
         });
 
         test('should throw error if no updates provided', async () => {
-            const orderData = testOrders.create(testUser.id);
+            const orderData = testOrders.create(testUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             await expect(OrdersM.update(createdOrder.id, {})).rejects.toThrow('No updates provided');
@@ -100,7 +106,7 @@ describe('Orders Model CRUD Operations', () => {
 
     describe('DELETE', () => {
         test('should delete order', async () => {
-            const orderData = testOrders.create(testUser.id);
+            const orderData = testOrders.create(testUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const deletedOrder = await OrdersM.delete(createdOrder.id);

@@ -99,8 +99,8 @@ describe('Orders API', () => {
         });
 
         test('should return orders list', async () => {
-            const order1 = testOrders.create(regularUser.id);
-            const order2 = testOrders.create(regularUser.id);
+            const order1 = testOrders.create(regularUser.id, testSupplier.id);
+            const order2 = testOrders.create(regularUser.id, testSupplier.id);
             await OrdersM.create(order1);
             await OrdersM.create(order2);
 
@@ -117,7 +117,7 @@ describe('Orders API', () => {
 
     describe('GET /api/orders/:id', () => {
         test('should return order by id', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const res = await request(app)
@@ -141,7 +141,7 @@ describe('Orders API', () => {
 
     describe('POST /api/orders', () => {
         test('should require authentication', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
 
             const res = await request(app)
                 .post('/api/orders')
@@ -152,7 +152,7 @@ describe('Orders API', () => {
         });
 
         test('should require admin role to create order', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
 
             const res = await request(app)
                 .post('/api/orders')
@@ -165,6 +165,8 @@ describe('Orders API', () => {
 
         test('should create order with admin role', async () => {
             const orderData = testOrders.create(regularUser.id);
+            // Add supplier_id for Import orders
+            orderData.supplierId = testSupplier.id;
 
             const res = await request(app)
                 .post('/api/orders')
@@ -179,7 +181,7 @@ describe('Orders API', () => {
 
     describe('PUT /api/orders/:id', () => {
         test('should require admin role to update order', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const updateData = {
@@ -197,7 +199,7 @@ describe('Orders API', () => {
         });
 
         test('should update order with admin role', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const updateData = {
@@ -217,7 +219,7 @@ describe('Orders API', () => {
 
     describe('DELETE /api/orders/:id', () => {
         test('should require admin role to delete order', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const res = await request(app)
@@ -229,7 +231,7 @@ describe('Orders API', () => {
         });
 
         test('should delete order with admin role', async () => {
-            const orderData = testOrders.create(regularUser.id);
+            const orderData = testOrders.create(regularUser.id, testSupplier.id);
             const createdOrder = await OrdersM.create(orderData);
 
             const res = await request(app)
