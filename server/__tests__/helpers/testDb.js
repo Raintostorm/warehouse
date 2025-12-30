@@ -8,9 +8,6 @@ async function cleanDatabase() {
         // Delete in reverse order of dependencies
         // Use DELETE instead of TRUNCATE to avoid locking issues
         const tables = [
-            'stock_history',
-            'stock_transfers',
-            'low_stock_alerts',
             'file_uploads',
             'order_warehouses',
             'product_management',
@@ -18,7 +15,6 @@ async function cleanDatabase() {
             'product_details',
             'order_details',
             'payments',
-            'bills',
             'orders',
             'products',
             'warehouses',
@@ -28,7 +24,8 @@ async function cleanDatabase() {
             'roles',
             'audit_logs',
             'notifications',
-            'password_resets'
+            'password_resets',
+            'supplier_import_history'
         ];
 
         // Delete in batches to avoid deadlocks
@@ -85,7 +82,6 @@ async function initTestDatabase() {
             console.warn('Warning: initDatabase failed, checking if tables exist:', initError.message);
             try {
                 await db.query('SELECT 1 FROM users LIMIT 1');
-                await db.query('SELECT 1 FROM stock_history LIMIT 1');
                 await db.query('SELECT 1 FROM file_uploads LIMIT 1');
             } catch (error) {
                 if (error.message.includes('does not exist') || error.message.includes('relation')) {
