@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Pool } = require('pg');
+const logger = require('./utils/logger');
 
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
@@ -11,7 +12,11 @@ const pool = new Pool({
 
 // Handle pool errors
 pool.on('error', (err) => {
-    console.error('Unexpected error on idle client', err);
+    logger.error('Unexpected error on idle client', { 
+        error: err.message, 
+        stack: err.stack,
+        code: err.code 
+    });
     // Don't exit the process, just log the error
 });
 
@@ -24,7 +29,28 @@ pool.on('remove', () => {
     // Connection removed from pool
 });
 
+/**
+ * Execute a callback within a database transaction
+ * @param {Function} callback - Async function that receives a client and performs operations
+ * @returns {Promise} Result of the callback
+ */
+async function withTransaction(callback) {
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        const result = await callback(client);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 module.exports = {
     query: (text, params) => pool.query(text, params),
     pool,
+    withTransaction,
 };

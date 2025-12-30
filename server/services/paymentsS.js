@@ -1,6 +1,5 @@
 const PaymentsM = require('../models/paymentsM');
 const OrdersM = require('../models/ordersM');
-const BillsM = require('../models/billsM');
 const logger = require('../utils/logger');
 
 const PaymentsS = {
@@ -21,19 +20,21 @@ const PaymentsS = {
     },
 
     createPayment: async (paymentData) => {
+        const orderId = paymentData.orderId || paymentData.order_id;
+        
+        // Validate order ID format (should start with SA, IM, EX, or ORD)
+        if (orderId && !/^(SA|IM|EX|ORD)\d+$/.test(orderId)) {
+            throw new Error(`Invalid order ID format: ${orderId}. Order ID must start with SA, IM, EX, or ORD followed by numbers.`);
+        }
+        
         // Validate order exists
-        const order = await OrdersM.findById(paymentData.orderId || paymentData.order_id);
+        const order = await OrdersM.findById(orderId);
         if (!order) {
             throw new Error('Order not found');
         }
 
-        // Find bill_id from order_id if not provided
-        if (!paymentData.billId && !paymentData.bill_id) {
-            const bills = await BillsM.findByOrderId(paymentData.orderId || paymentData.order_id);
-            if (bills.length > 0) {
-                paymentData.billId = bills[0].id;
-            }
-        }
+        // Bills đã được disable - bill_id là optional, không cần tìm nữa
+        // Payments sẽ link trực tiếp với orders qua order_id
 
         // Generate payment ID if not provided
         if (!paymentData.id) {
@@ -60,36 +61,8 @@ const PaymentsS = {
             paymentData.id = `PAY${timestamp}`;
         }
 
-        // Find bill_id from order_id if not provided
-        if (!paymentData.billId && !paymentData.bill_id && paymentData.orderId) {
-            try {
-                const bills = await BillsM.findByOrderId(paymentData.orderId);
-                if (bills.length > 0) {
-                    paymentData.billId = bills[0].id;
-                } else {
-                    // Try to find bill by amount if orderId doesn't match
-                    const allBills = await BillsM.findAll();
-                    const paymentAmount = parseFloat(paymentData.amount || 0);
-                    const matchingBill = allBills.find(bill => {
-                        const billTotal = parseFloat(bill.total_amount || 0);
-                        return Math.abs(billTotal - paymentAmount) < 0.01 && bill.status === 'pending';
-                    });
-                    if (matchingBill) {
-                        paymentData.billId = matchingBill.id;
-                        // Also update orderId to match the bill's order_id
-                        if (!paymentData.orderId || paymentData.orderId === paymentData.txnRef) {
-                            paymentData.orderId = matchingBill.order_id;
-                        }
-                    }
-                }
-            } catch (err) {
-                // Don't fail if bill lookup fails
-                logger.warn('Could not find bill for gateway payment', {
-                    orderId: paymentData.orderId,
-                    error: err.message
-                });
-            }
-        }
+        // Bills đã được disable - bill_id là optional, không cần tìm nữa
+        // Payments sẽ link trực tiếp với orders qua order_id
 
         // Set payment date if not provided and status is completed
         if (!paymentData.paymentDate && !paymentData.payment_date) {
@@ -145,6 +118,56 @@ const PaymentsS = {
             isFullyPaid: remaining <= 0,
             paymentStatus: remaining <= 0 ? 'paid' : (totalPaid > 0 ? 'partial' : 'unpaid')
         };
+    },
+
+    getUnpaidSaleOrders: async () => {
+        // Get all sale orders
+        const allOrders = await OrdersM.findAll();
+        const saleOrders = allOrders.filter(order => {
+            const orderType = (order.type || '').toLowerCase();
+            return orderType === 'sale' || orderType === 'sell';
+        });
+
+        // Check payment status for each sale order
+        const unpaidOrders = [];
+        for (const order of saleOrders) {
+            try {
+                const orderId = order.id || order.Id;
+                const orderTotal = parseFloat(order.total || order.Total || 0);
+                
+                // Skip orders with total = 0
+                if (orderTotal <= 0) {
+                    continue;
+                }
+
+                const totalPaid = await PaymentsM.getTotalByOrderId(orderId);
+                const remaining = orderTotal - totalPaid;
+
+                // Only include orders that are not fully paid
+                if (remaining > 0) {
+                    unpaidOrders.push({
+                        id: orderId,
+                        type: order.type || order.Type,
+                        date: order.date || order.Date,
+                        customer_name: order.customer_name || order.customerName || order.CustomerName,
+                        total: orderTotal,
+                        totalPaid: totalPaid,
+                        remaining: remaining
+                    });
+                }
+            } catch (err) {
+                logger.warn('Error checking payment status for order', { orderId: order.id, error: err.message });
+            }
+        }
+
+        // Sort by date (newest first)
+        unpaidOrders.sort((a, b) => {
+            const dateA = new Date(a.date || 0);
+            const dateB = new Date(b.date || 0);
+            return dateB - dateA;
+        });
+
+        return unpaidOrders;
     }
 };
 

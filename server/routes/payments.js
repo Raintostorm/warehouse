@@ -3,6 +3,7 @@ const router = express.Router();
 const PaymentsC = require('../controllers/paymentsC');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { apiLimiter } = require('../middlewares/rateLimiter');
 
 // Gateway callbacks (NO AUTH REQUIRED - called by payment gateways)
 // These MUST be defined BEFORE authMiddleware to avoid authentication
@@ -28,8 +29,11 @@ router.get('/order/:orderId', PaymentsC.getPaymentsByOrderId);
 // Get order payment summary
 router.get('/order/:orderId/summary', PaymentsC.getOrderPaymentSummary);
 
-// Create payment (admin only)
-router.post('/', roleMiddleware('admin'), PaymentsC.createPayment);
+// Get unpaid sale orders
+router.get('/orders/unpaid', PaymentsC.getUnpaidSaleOrders);
+
+// Create payment (admin only) - with rate limiting
+router.post('/', apiLimiter, roleMiddleware('admin'), PaymentsC.createPayment);
 
 // Update payment (admin only)
 router.put('/:id', roleMiddleware('admin'), PaymentsC.updatePayment);
@@ -37,9 +41,9 @@ router.put('/:id', roleMiddleware('admin'), PaymentsC.updatePayment);
 // Delete payment (admin only)
 router.delete('/:id', roleMiddleware('admin'), PaymentsC.deletePayment);
 
-// Payment Gateway Routes (requires auth)
+// Payment Gateway Routes (requires auth) - with rate limiting
 // Initiate gateway payment
-router.post('/gateway/initiate', PaymentsC.initiateGatewayPayment);
+router.post('/gateway/initiate', apiLimiter, PaymentsC.initiateGatewayPayment);
 
 // Get gateway status
 router.get('/gateway/status', PaymentsC.getGatewayStatus);

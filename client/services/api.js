@@ -265,55 +265,7 @@ export const orderAPI = {
     }
 };
 
-// API cho Bills
-export const billAPI = {
-    getAllBills: async () => {
-        const response = await api.get('/bills');
-        return response.data;
-    },
-    getBillById: async (id) => {
-        const response = await api.get(`/bills/${id}`);
-        return response.data;
-    },
-    getBillsByOrderId: async (orderId) => {
-        const response = await api.get(`/bills/order/${orderId}`);
-        return response.data;
-    },
-    getUnpaidBills: async () => {
-        const response = await api.get('/bills/unpaid');
-        return response.data;
-    },
-    createBill: async (billData) => {
-        // Support both orderId (single) and orderIds (array)
-        const requestData = {
-            ...billData,
-            // If orderIds is provided, use it; otherwise use orderId
-            orderIds: billData.orderIds || (billData.orderId ? [billData.orderId] : undefined)
-        };
-        // Remove orderId if orderIds is provided
-        if (requestData.orderIds) {
-            delete requestData.orderId;
-        }
-        const response = await api.post('/bills', requestData);
-        return response.data;
-    },
-    getOrdersByBillId: async (billId) => {
-        const response = await api.get(`/bills/${billId}/orders`);
-        return response.data;
-    },
-    getOrdersInBills: async () => {
-        const response = await api.get('/bills/orders/in-bills');
-        return response.data;
-    },
-    updateBill: async (id, billData) => {
-        const response = await api.put(`/bills/${id}`, billData);
-        return response.data;
-    },
-    deleteBill: async (id) => {
-        const response = await api.delete(`/bills/${id}`);
-        return response.data;
-    }
-};
+// billAPI đã được xóa - bills không còn được sử dụng
 
 // API cho Payments
 export const paymentAPI = {
@@ -331,6 +283,10 @@ export const paymentAPI = {
     },
     getOrderPaymentSummary: async (orderId) => {
         const response = await api.get(`/payments/order/${orderId}/summary`);
+        return response.data;
+    },
+    getUnpaidSaleOrders: async () => {
+        const response = await api.get('/payments/orders/unpaid');
         return response.data;
     },
     createPayment: async (paymentData) => {
@@ -905,7 +861,7 @@ export const chatbotAPI = {
     }
 };
 
-// API cho Inventory Management
+// API cho Inventory Management (simplified - only stock summary and current stock)
 export const inventoryAPI = {
     getStockSummary: async (productId) => {
         const response = await api.get(`/inventory/summary/${productId}`);
@@ -915,84 +871,16 @@ export const inventoryAPI = {
         const params = warehouseId ? { warehouseId } : {};
         const response = await api.get(`/inventory/stock/${productId}`, { params });
         return response.data;
-    },
-    getStockHistory: async (filters = {}) => {
-        const response = await api.get('/inventory/history', { params: filters });
-        return response.data;
-    },
-    checkLowStock: async (productId, warehouseId = null) => {
-        const params = warehouseId ? { warehouseId } : {};
-        const response = await api.get(`/inventory/low-stock/${productId}`, { params });
-        return response.data;
-    },
-    adjustStock: async (productId, adjustmentData) => {
-        const response = await api.post(`/inventory/adjust/${productId}`, adjustmentData);
-        return response.data;
-    },
-    transferStock: async (transferData) => {
-        const response = await api.post('/inventory/transfer', transferData);
-        return response.data;
     }
+    // Removed: getStockHistory, checkLowStock, adjustStock, transferStock
+    // Tables removed: stock_history, stock_transfers, low_stock_alerts
 };
 
-// API cho Stock Transfers
-export const stockTransferAPI = {
-    getAllTransfers: async (filters = {}) => {
-        const response = await api.get('/stock-transfers', { params: filters });
-        return response.data;
-    },
-    getTransferById: async (id) => {
-        const response = await api.get(`/stock-transfers/${id}`);
-        return response.data;
-    },
-    createTransfer: async (transferData) => {
-        const response = await api.post('/stock-transfers', transferData);
-        return response.data;
-    },
-    updateTransfer: async (id, updateData) => {
-        const response = await api.put(`/stock-transfers/${id}`, updateData);
-        return response.data;
-    },
-    approveTransfer: async (id) => {
-        const response = await api.post(`/stock-transfers/${id}/approve`);
-        return response.data;
-    },
-    cancelTransfer: async (id) => {
-        const response = await api.post(`/stock-transfers/${id}/cancel`);
-        return response.data;
-    }
-};
+// API cho Stock Transfers - DISABLED (table removed)
+// export const stockTransferAPI = { ... };
 
-// API cho Low Stock Alerts
-export const lowStockAlertAPI = {
-    getAllAlerts: async (filters = {}) => {
-        const response = await api.get('/low-stock-alerts', { params: filters });
-        return response.data;
-    },
-    getActiveAlerts: async () => {
-        const response = await api.get('/low-stock-alerts/active');
-        return response.data;
-    },
-    getAlertHistory: async (filters = {}) => {
-        const response = await api.get('/low-stock-alerts/history', { params: filters });
-        return response.data;
-    },
-    getAlertById: async (id) => {
-        const response = await api.get(`/low-stock-alerts/${id}`);
-        return response.data;
-    },
-    checkAndCreateAlerts: async (productId = null, warehouseId = null) => {
-        const params = {};
-        if (productId) params.productId = productId;
-        if (warehouseId) params.warehouseId = warehouseId;
-        const response = await api.post('/low-stock-alerts/check', null, { params });
-        return response.data;
-    },
-    resolveAlert: async (id, resolvedBy = null) => {
-        const response = await api.post(`/low-stock-alerts/${id}/resolve`, { resolvedBy });
-        return response.data;
-    }
-};
+// API cho Low Stock Alerts - DISABLED (table removed)
+// export const lowStockAlertAPI = { ... };
 
 // API cho File Uploads
 export const fileUploadAPI = {
@@ -1002,7 +890,7 @@ export const fileUploadAPI = {
         formData.append('entityType', entityType);
         formData.append('entityId', entityId);
         if (uploadType) formData.append('uploadType', uploadType);
-        
+
         const response = await api.post('/files/upload/image', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
@@ -1016,7 +904,7 @@ export const fileUploadAPI = {
         formData.append('entityType', entityType);
         formData.append('entityId', entityId);
         if (uploadType) formData.append('uploadType', uploadType);
-        
+
         const response = await api.post('/files/upload/images', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
@@ -1030,7 +918,7 @@ export const fileUploadAPI = {
         formData.append('entityType', entityType);
         formData.append('entityId', entityId);
         if (uploadType) formData.append('uploadType', uploadType);
-        
+
         const response = await api.post('/files/upload/file', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'

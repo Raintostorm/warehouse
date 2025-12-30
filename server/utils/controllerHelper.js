@@ -14,6 +14,50 @@ function sendSuccess(res, data, message = 'Operation successful', statusCode = 2
 }
 
 /**
+ * Sanitize error message to prevent exposing internal details
+ * @param {string} errorMessage - Original error message
+ * @param {number} statusCode - HTTP status code
+ * @returns {string} Sanitized error message
+ */
+function sanitizeErrorMessage(errorMessage, statusCode) {
+    // In production, don't expose internal errors
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    if (isProduction) {
+        // Don't expose stack traces, file paths, or internal IDs
+        if (errorMessage.includes('at ') || errorMessage.includes('Stack:')) {
+            return 'An internal error occurred. Please contact support if the problem persists.';
+        }
+        
+        // Don't expose database errors in detail
+        if (errorMessage.includes('relation') || 
+            errorMessage.includes('column') || 
+            errorMessage.includes('syntax error') ||
+            errorMessage.includes('violates') ||
+            errorMessage.includes('constraint')) {
+            if (statusCode === 400 || statusCode === 404 || statusCode === 409) {
+                // For client errors, keep the message but simplify it
+                return errorMessage.replace(/relation\s+"?\w+"?/gi, 'database')
+                                  .replace(/column\s+"?\w+"?/gi, 'field')
+                                  .replace(/violates\s+\w+\s+constraint/gi, 'violates constraint');
+            }
+            return 'A database error occurred. Please try again or contact support.';
+        }
+        
+        // Don't expose file system paths
+        if (errorMessage.includes('ENOENT') || 
+            errorMessage.includes('EACCES') ||
+            errorMessage.includes('C:\\') ||
+            errorMessage.includes('/')) {
+            return 'A file system error occurred. Please contact support.';
+        }
+    }
+    
+    // In development, show full error for debugging
+    return errorMessage;
+}
+
+/**
  * Xử lý response lỗi với status code phù hợp
  */
 function sendError(res, error, defaultMessage = 'Operation failed', defaultStatusCode = 500) {
@@ -36,10 +80,24 @@ function sendError(res, error, defaultMessage = 'Operation failed', defaultStatu
         statusCode = 403;
     }
 
+    // Sanitize error message
+    const sanitizedError = sanitizeErrorMessage(errorMessage, statusCode);
+
+    // Log full error details for debugging (server-side only)
+    if (process.env.NODE_ENV !== 'production') {
+        const logger = require('./logger');
+        logger.error('Error response', {
+            statusCode,
+            error: errorMessage,
+            stack: error.stack,
+            defaultMessage
+        });
+    }
+
     return res.status(statusCode).json({
         success: false,
         message: defaultMessage,
-        error: errorMessage
+        error: sanitizedError
     });
 }
 

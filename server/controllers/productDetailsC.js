@@ -1,4 +1,5 @@
 const ProductDetailsS = require('../services/productDetailsS');
+const logger = require('../utils/logger');
 
 const ProductDetailsC = {
     getAllProductDetails: async (req, res) => {
@@ -103,7 +104,7 @@ const ProductDetailsC = {
                     // Check for low stock
                     await InventoryS.checkLowStock(pid, wid);
                 } catch (invError) {
-                    console.error('Failed to record inventory change for product detail:', invError);
+                    logger.error('Failed to record inventory change for product detail', { error: invError.message, stack: invError.stack, productId: pid, warehouseId: wid });
                 }
             }
             

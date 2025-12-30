@@ -35,8 +35,22 @@ const InventoryS = {
 
             return await StockHistoryM.create(history);
         } catch (error) {
-            logger.error('Error recording stock change', { error: error.message, stack: error.stack, changeData });
-            throw error;
+            // Check if error is "table does not exist" (PostgreSQL error code 42P01)
+            // If table doesn't exist, it's expected behavior - log warn instead of error
+            const isTableNotExist = error.code === '42P01' || 
+                                   error.message?.includes('does not exist') || 
+                                   error.message?.includes('relation') ||
+                                   error.message?.includes('stock_history');
+            
+            if (isTableNotExist) {
+                // Table doesn't exist - expected behavior, don't log error
+                // Just throw silently, caller will handle it
+                throw error;
+            } else {
+                // Real error - log it
+                logger.error('Error recording stock change', { error: error.message, stack: error.stack, changeData });
+                throw error;
+            }
         }
     },
 
@@ -155,8 +169,22 @@ const InventoryS = {
                 alertLevel: currentQuantity < threshold ? alertLevel : null
             };
         } catch (error) {
-            logger.error('Error checking low stock', { error: error.message, productId, warehouseId });
-            throw error;
+            // Check if error is "table does not exist" (PostgreSQL error code 42P01)
+            // If table doesn't exist, it's expected behavior - log warn instead of error
+            const isTableNotExist = error.code === '42P01' || 
+                                   error.message?.includes('does not exist') || 
+                                   error.message?.includes('relation') ||
+                                   error.message?.includes('low_stock_alerts');
+            
+            if (isTableNotExist) {
+                // Table doesn't exist - expected behavior, don't log error
+                // Just throw silently, caller will handle it
+                throw error;
+            } else {
+                // Real error - log it
+                logger.error('Error checking low stock', { error: error.message, productId, warehouseId });
+                throw error;
+            }
         }
     },
 

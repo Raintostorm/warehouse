@@ -3,6 +3,7 @@ import { userAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
+import { BUTTON_COLORS } from '../src/utils/buttonColors';
 import UUser from './UUser';
 import UserRoleManager from './UserRoleManager';
 import Pagination from '../src/components/Pagination';
@@ -626,7 +627,7 @@ const UserL = () => {
                                             style={{
                                                 width: '100%',
                                                 padding: '10px 16px',
-                                                background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                background: BUTTON_COLORS.delete,
                                                 color: 'white',
                                                 border: 'none',
                                                 borderRadius: '10px',
@@ -879,13 +880,13 @@ const UserL = () => {
                                                             e.currentTarget.style.boxShadow = '0 2px 4px rgba(71, 85, 105, 0.2)';
                                                         }}
                                                     >
-                                                        <Icons.Security size={16} /> Quyền
+                                                        <Icons.Security size={16} /> Roles
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(user.id)}
                                                         style={{
                                                             padding: '8px 16px',
-                                                            background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                            background: BUTTON_COLORS.delete,
                                                             color: 'white',
                                                             border: 'none',
                                                             borderRadius: '10px',

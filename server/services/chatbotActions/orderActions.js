@@ -9,7 +9,7 @@ const OrderActions = {
      */
     createOrder: async (params, user) => {
         try {
-            const { customerName, type = 'sell', date } = params;
+            const { customerName, type = 'sale', date } = params;
             
             if (!customerName) {
                 return {

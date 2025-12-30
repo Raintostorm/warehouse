@@ -37,54 +37,40 @@ const StatisticsM = {
 
     // Doanh thu
     getRevenue: async () => {
-        // Tổng doanh thu - chỉ tính các order sale đã thanh toán (có bill status = 'paid')
-        // Support cả bills.order_id và bill_orders junction table
+        // Tổng doanh thu - tính từ payments đã completed cho sale orders
         const totalRevenue = await queryWithFallback(
-            `SELECT COALESCE(SUM(o.total), 0) as total 
-            FROM orders o
-            WHERE (o.type = 'Sale' OR o.type = 'Sell')
-            AND EXISTS (
-                SELECT 1 FROM bills b 
-                WHERE (b.order_id = o.id OR EXISTS (
-                    SELECT 1 FROM bill_orders bo 
-                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
-                ))
-                AND b.status = 'paid'
-            )`,
-            `SELECT COALESCE(SUM(o."Total"), 0) as total 
-            FROM "Orders" o
-            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell')
-            AND EXISTS (
-                SELECT 1 FROM "Bills" b 
-                WHERE (b."OrderId" = o."Id" OR EXISTS (
-                    SELECT 1 FROM "BillOrders" bo 
-                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
-                ))
-                AND b."Status" = 'paid'
-            )`
+            `SELECT COALESCE(SUM(p.amount), 0) as total 
+            FROM payments p
+            INNER JOIN orders o ON p.order_id = o.id
+            WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell')
+            AND LOWER(p.payment_status) = 'completed'`,
+            `SELECT COALESCE(SUM(p."Amount"), 0) as total 
+            FROM "Payments" p
+            INNER JOIN "Orders" o ON p."OrderId" = o."Id"
+            WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell')
+            AND LOWER(p."PaymentStatus") = 'completed'`
         );
 
-        // Doanh thu hôm nay - chỉ tính các order sale đã thanh toán
-        // Thử query đơn giản trước với bills.order_id
+        // Doanh thu hôm nay - tính từ payments completed hôm nay cho sale orders
         let todayRevenue;
         try {
             todayRevenue = await queryWithFallback(
-                `SELECT COALESCE(SUM(o.total), 0) as total 
-                FROM orders o
-                INNER JOIN bills b ON o.id = b.order_id
-                WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell') 
-                AND DATE(o.date) = CURRENT_DATE
-                AND LOWER(b.status) = 'paid'`,
-                `SELECT COALESCE(SUM(o."Total"), 0) as total 
-                FROM "Orders" o
-                INNER JOIN "Bills" b ON o."Id" = b."OrderId"
-                WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell') 
-                AND DATE(o."Date") = CURRENT_DATE
-                AND LOWER(b."Status") = 'paid'`
+                `SELECT COALESCE(SUM(p.amount), 0) as total 
+                FROM payments p
+                INNER JOIN orders o ON p.order_id = o.id
+                WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell')
+                AND LOWER(p.payment_status) = 'completed'
+                AND DATE(p.payment_date) = CURRENT_DATE`,
+                `SELECT COALESCE(SUM(p."Amount"), 0) as total 
+                FROM "Payments" p
+                INNER JOIN "Orders" o ON p."OrderId" = o."Id"
+                WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell')
+                AND LOWER(p."PaymentStatus") = 'completed'
+                AND DATE(p."PaymentDate") = CURRENT_DATE`
             );
             const todayAmount = parseFloat(todayRevenue.rows[0]?.total || 0);
-            logger.info('Today revenue query result', { 
-                total: todayAmount, 
+            logger.info('Today revenue query result', {
+                total: todayAmount,
                 rowCount: todayRevenue.rows.length,
                 currentDate: new Date().toISOString().split('T')[0]
             });
@@ -93,69 +79,45 @@ const StatisticsM = {
             todayRevenue = { rows: [{ total: 0 }] };
         }
 
-        // Doanh thu tháng này - chỉ tính các order sale đã thanh toán
+        // Doanh thu tháng này - tính từ payments completed trong tháng cho sale orders
         const monthRevenue = await queryWithFallback(
-            `SELECT COALESCE(SUM(o.total), 0) as total 
-            FROM orders o
-            WHERE (o.type = 'Sale' OR o.type = 'Sell') 
-            AND EXTRACT(MONTH FROM o.date) = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM o.date) = EXTRACT(YEAR FROM CURRENT_DATE)
-            AND EXISTS (
-                SELECT 1 FROM bills b 
-                WHERE (b.order_id = o.id OR EXISTS (
-                    SELECT 1 FROM bill_orders bo 
-                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
-                ))
-                AND b.status = 'paid'
-            )`,
-            `SELECT COALESCE(SUM(o."Total"), 0) as total 
-            FROM "Orders" o
-            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell') 
-            AND EXTRACT(MONTH FROM o."Date") = EXTRACT(MONTH FROM CURRENT_DATE)
-            AND EXTRACT(YEAR FROM o."Date") = EXTRACT(YEAR FROM CURRENT_DATE)
-            AND EXISTS (
-                SELECT 1 FROM "Bills" b 
-                WHERE (b."OrderId" = o."Id" OR EXISTS (
-                    SELECT 1 FROM "BillOrders" bo 
-                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
-                ))
-                AND b."Status" = 'paid'
-            )`
+            `SELECT COALESCE(SUM(p.amount), 0) as total 
+            FROM payments p
+            INNER JOIN orders o ON p.order_id = o.id
+            WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell')
+            AND LOWER(p.payment_status) = 'completed'
+            AND EXTRACT(MONTH FROM p.payment_date) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM p.payment_date) = EXTRACT(YEAR FROM CURRENT_DATE)`,
+            `SELECT COALESCE(SUM(p."Amount"), 0) as total 
+            FROM "Payments" p
+            INNER JOIN "Orders" o ON p."OrderId" = o."Id"
+            WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell')
+            AND LOWER(p."PaymentStatus") = 'completed'
+            AND EXTRACT(MONTH FROM p."PaymentDate") = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(YEAR FROM p."PaymentDate") = EXTRACT(YEAR FROM CURRENT_DATE)`
         );
 
-        // Doanh thu theo tháng (12 tháng gần nhất) - chỉ tính các order sale đã thanh toán
+        // Doanh thu theo tháng (12 tháng gần nhất) - tính từ payments completed cho sale orders
         const revenueByMonth = await queryWithFallback(
             `SELECT 
-                TO_CHAR(o.date, 'YYYY-MM') as month,
-                COALESCE(SUM(o.total), 0) as revenue
-            FROM orders o
-            WHERE (o.type = 'Sale' OR o.type = 'Sell')
-            AND o.date >= CURRENT_DATE - INTERVAL '12 months'
-            AND EXISTS (
-                SELECT 1 FROM bills b 
-                WHERE (b.order_id = o.id OR EXISTS (
-                    SELECT 1 FROM bill_orders bo 
-                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
-                ))
-                AND b.status = 'paid'
-            )
-            GROUP BY TO_CHAR(o.date, 'YYYY-MM')
+                TO_CHAR(p.payment_date, 'YYYY-MM') as month,
+                COALESCE(SUM(p.amount), 0) as revenue
+            FROM payments p
+            INNER JOIN orders o ON p.order_id = o.id
+            WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell')
+            AND LOWER(p.payment_status) = 'completed'
+            AND p.payment_date >= CURRENT_DATE - INTERVAL '12 months'
+            GROUP BY TO_CHAR(p.payment_date, 'YYYY-MM')
             ORDER BY month ASC`,
             `SELECT 
-                TO_CHAR(o."Date", 'YYYY-MM') as month,
-                COALESCE(SUM(o."Total"), 0) as revenue
-            FROM "Orders" o
-            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell')
-            AND o."Date" >= CURRENT_DATE - INTERVAL '12 months'
-            AND EXISTS (
-                SELECT 1 FROM "Bills" b 
-                WHERE (b."OrderId" = o."Id" OR EXISTS (
-                    SELECT 1 FROM "BillOrders" bo 
-                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
-                ))
-                AND b."Status" = 'paid'
-            )
-            GROUP BY TO_CHAR(o."Date", 'YYYY-MM')
+                TO_CHAR(p."PaymentDate", 'YYYY-MM') as month,
+                COALESCE(SUM(p."Amount"), 0) as revenue
+            FROM "Payments" p
+            INNER JOIN "Orders" o ON p."OrderId" = o."Id"
+            WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell')
+            AND LOWER(p."PaymentStatus") = 'completed'
+            AND p."PaymentDate" >= CURRENT_DATE - INTERVAL '12 months'
+            GROUP BY TO_CHAR(p."PaymentDate", 'YYYY-MM')
             ORDER BY month ASC`
         );
 
@@ -286,38 +248,26 @@ const StatisticsM = {
     getRevenueByDay: async (days = 7) => {
         const result = await queryWithFallback(
             `SELECT 
-                DATE(o.date) as day,
-                COALESCE(SUM(o.total), 0) as revenue,
-                COUNT(*) as order_count
-            FROM orders o
-            WHERE (o.type = 'Sale' OR o.type = 'Sell')
-            AND o.date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-            AND EXISTS (
-                SELECT 1 FROM bills b 
-                WHERE (b.order_id = o.id OR EXISTS (
-                    SELECT 1 FROM bill_orders bo 
-                    WHERE bo.bill_id = b.id AND bo.order_id = o.id
-                ))
-                AND b.status = 'paid'
-            )
-            GROUP BY DATE(o.date)
+                DATE(p.payment_date) as day,
+                COALESCE(SUM(p.amount), 0) as revenue,
+                COUNT(DISTINCT p.order_id) as order_count
+            FROM payments p
+            INNER JOIN orders o ON p.order_id = o.id
+            WHERE (LOWER(o.type) = 'sale' OR LOWER(o.type) = 'sell')
+            AND LOWER(p.payment_status) = 'completed'
+            AND p.payment_date >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+            GROUP BY DATE(p.payment_date)
             ORDER BY day ASC`,
             `SELECT 
-                DATE(o."Date") as day,
-                COALESCE(SUM(o."Total"), 0) as revenue,
-                COUNT(*) as order_count
-            FROM "Orders" o
-            WHERE (o."Type" = 'Sale' OR o."Type" = 'Sell')
-            AND o."Date" >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
-            AND EXISTS (
-                SELECT 1 FROM "Bills" b 
-                WHERE (b."OrderId" = o."Id" OR EXISTS (
-                    SELECT 1 FROM "BillOrders" bo 
-                    WHERE bo."BillId" = b."Id" AND bo."OrderId" = o."Id"
-                ))
-                AND b."Status" = 'paid'
-            )
-            GROUP BY DATE(o."Date")
+                DATE(p."PaymentDate") as day,
+                COALESCE(SUM(p."Amount"), 0) as revenue,
+                COUNT(DISTINCT p."OrderId") as order_count
+            FROM "Payments" p
+            INNER JOIN "Orders" o ON p."OrderId" = o."Id"
+            WHERE (LOWER(o."Type") = 'sale' OR LOWER(o."Type") = 'sell')
+            AND LOWER(p."PaymentStatus") = 'completed'
+            AND p."PaymentDate" >= CURRENT_DATE - MAKE_INTERVAL(days => $1)
+            GROUP BY DATE(p."PaymentDate")
             ORDER BY day ASC`,
             [days]
         );

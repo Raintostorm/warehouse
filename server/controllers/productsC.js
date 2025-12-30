@@ -2,6 +2,7 @@ const ProductsS = require('../services/productsS');
 const getActor = require('../utils/getActor');
 const auditLogger = require('../utils/auditLogger');
 const { sendSuccess, sendError } = require('../utils/controllerHelper');
+const logger = require('../utils/logger');
 
 const ProductsC = {
     getAllProducts: async (req, res) => {
@@ -93,7 +94,7 @@ const ProductsC = {
                     // Check for low stock
                     await InventoryS.checkLowStock(product.id || product.Id, null);
                 } catch (invError) {
-                    console.error('Failed to record inventory change for product:', invError);
+                    logger.error('Failed to record inventory change for product', { error: invError.message, stack: invError.stack, productId: product.id || product.Id });
                 }
             }
 
@@ -102,7 +103,7 @@ const ProductsC = {
                 const NotificationsS = require('../services/notificationsS');
                 await NotificationsS.checkLowStock(10);
             } catch (notifError) {
-                console.error('Failed to check low stock:', notifError);
+                logger.error('Failed to check low stock', { error: notifError.message, stack: notifError.stack });
             }
 
             return sendSuccess(res, product, 'Product updated successfully');

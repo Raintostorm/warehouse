@@ -1,4 +1,5 @@
 const AuditLogS = require('../services/auditLogS');
+const logger = require('../utils/logger');
 
 const AuditLogC = {
     // Get all audit logs with filters
@@ -45,7 +46,7 @@ const AuditLogC = {
                 res.status(500).json(result);
             }
         } catch (error) {
-            console.error('Audit log controller error:', error);
+            logger.error('Audit log controller error', { error: error.message, stack: error.stack, method: 'getAuditLogs', filters: req.query });
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
@@ -66,7 +67,7 @@ const AuditLogC = {
                 res.status(500).json(result);
             }
         } catch (error) {
-            console.error('Audit log controller error:', error);
+            logger.error('Audit log controller error', { error: error.message, stack: error.stack, method: 'getAuditLogs', filters: req.query });
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
@@ -88,7 +89,7 @@ const AuditLogC = {
                 res.status(500).json(result);
             }
         } catch (error) {
-            console.error('Audit log controller error:', error);
+            logger.error('Audit log controller error', { error: error.message, stack: error.stack, method: 'getAuditLogs', filters: req.query });
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',

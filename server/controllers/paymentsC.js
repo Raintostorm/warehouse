@@ -1,6 +1,5 @@
 const PaymentsS = require('../services/paymentsS');
 const PaymentGatewayS = require('../services/paymentGatewayS');
-const BillsM = require('../models/billsM');
 const PaymentsM = require('../models/paymentsM');
 const getActor = require('../utils/getActor');
 const auditLogger = require('../utils/auditLogger');
@@ -9,138 +8,12 @@ const { sendSuccess, sendError } = require('../utils/controllerHelper');
 
 /**
  * Helper function to update bill status after payment
- * Checks if order is fully paid and updates bill status accordingly
+ * DISABLED: Bills đã được disable, payments link trực tiếp với orders
  */
 async function updateBillStatusAfterPayment(orderId, actorInfo, paymentAmount = null) {
-    try {
-        logger.info('Updating bill status after payment', { orderId, paymentAmount });
-        
-        // Get all bills for this order (using bill_orders junction table)
-        let bills = await BillsM.getBillsByOrderIdFromJunction(orderId);
-        
-        // If no bills found by orderId, try to find by payment amount
-        if (bills.length === 0 && paymentAmount) {
-            logger.info('No bills found by orderId, trying to find by payment amount', { 
-                orderId, 
-                paymentAmount 
-            });
-            
-            // Get all bills and find ones with matching amount
-            const allBills = await BillsM.findAll();
-            bills = allBills.filter(bill => {
-                const billTotal = parseFloat(bill.total_amount || 0);
-                // Allow small difference (0.01) for floating point comparison
-                return Math.abs(billTotal - paymentAmount) < 0.01 && bill.status === 'pending';
-            });
-            
-            logger.info('Found bills by amount', { 
-                billsFound: bills.length,
-                bills: bills.map(b => ({ id: b.id, order_id: b.order_id, total: b.total_amount }))
-            });
-        }
-        
-        if (bills.length === 0) {
-            logger.warn('No bills found for order', { orderId, paymentAmount });
-            return;
-        }
-
-        // Get all completed payments for this order
-        const payments = await PaymentsM.findByOrderId(orderId);
-        const totalPaid = payments
-            .filter(p => p.payment_status === 'completed')
-            .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-
-        logger.info('Payment summary for bill update', {
-            orderId,
-            billsCount: bills.length,
-            totalPaid,
-            paymentsCount: payments.length,
-            payments: payments.map(p => ({ 
-                id: p.id, 
-                amount: p.amount, 
-                status: p.payment_status,
-                order_id: p.order_id,
-                bill_id: p.bill_id
-            }))
-        });
-
-        // Update each bill status
-        for (const bill of bills) {
-            const billTotal = parseFloat(bill.total_amount || 0);
-            
-            // Also check payments by bill_id if available
-            let billPayments = payments;
-            if (bill.id) {
-                try {
-                    const paymentsByBill = await PaymentsM.findByBillId(bill.id);
-                    const billTotalPaid = paymentsByBill
-                        .filter(p => p.payment_status === 'completed')
-                        .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-                    
-                    // Use the higher amount (either by order_id or bill_id)
-                    if (billTotalPaid > totalPaid) {
-                        logger.info('Found more payments by bill_id', {
-                            billId: bill.id,
-                            billTotalPaid,
-                            orderTotalPaid: totalPaid
-                        });
-                    }
-                } catch (err) {
-                    logger.debug('Could not get payments by bill_id', { billId: bill.id, error: err.message });
-                }
-            }
-            
-            const isFullyPaid = totalPaid >= billTotal;
-
-            logger.info('Checking bill payment status', {
-                billId: bill.id,
-                billOrderId: bill.order_id,
-                billTotal,
-                totalPaid,
-                isFullyPaid,
-                currentStatus: bill.status
-            });
-
-            if (isFullyPaid && bill.status !== 'paid') {
-                await BillsM.update(bill.id, {
-                    status: 'paid',
-                    actor: actorInfo
-                });
-                logger.info('✅ Bill status updated to paid', {
-                    billId: bill.id,
-                    orderId: bill.order_id,
-                    totalPaid,
-                    billTotal
-                });
-            } else if (!isFullyPaid && bill.status === 'paid') {
-                // If somehow bill was marked as paid but payment was refunded
-                await BillsM.update(bill.id, {
-                    status: 'pending',
-                    actor: actorInfo
-                });
-                logger.info('Bill status updated to pending (payment insufficient)', {
-                    billId: bill.id,
-                    orderId: bill.order_id,
-                    totalPaid,
-                    billTotal
-                });
-            } else {
-                logger.debug('Bill status unchanged', {
-                    billId: bill.id,
-                    isFullyPaid,
-                    currentStatus: bill.status
-                });
-            }
-        }
-    } catch (error) {
-        // Don't throw error, just log it - payment was successful
-        logger.error('Failed to update bill status after payment', {
-            orderId,
-            paymentAmount,
-            error: error.message,
-            stack: error.stack
-        });
-    }
+    // Bills đã được disable - không cần update bill status nữa
+    // Payment status có thể check trực tiếp từ payments table qua order_id
+    return;
 }
 
 const PaymentsC = {
@@ -177,6 +50,15 @@ const PaymentsC = {
             return sendSuccess(res, summary, 'Payment summary fetched successfully');
         } catch (error) {
             return sendError(res, error, 'Failed to fetch payment summary');
+        }
+    },
+
+    getUnpaidSaleOrders: async (req, res) => {
+        try {
+            const orders = await PaymentsS.getUnpaidSaleOrders();
+            return sendSuccess(res, orders, 'Unpaid sale orders fetched successfully');
+        } catch (error) {
+            return sendError(res, error, 'Failed to fetch unpaid sale orders');
         }
     },
 

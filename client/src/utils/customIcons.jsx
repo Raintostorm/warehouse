@@ -270,3 +270,11 @@ export const HistoryIcon = ({ size, color, ...props }) => (
     </Icon>
 );
 
+// Eye/View Icon
+export const EyeIcon = ({ size, color, ...props }) => (
+    <Icon size={size} color={color} {...props}>
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+        <circle cx="12" cy="12" r="3" />
+    </Icon>
+);
+

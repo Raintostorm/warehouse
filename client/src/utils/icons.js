@@ -27,7 +27,8 @@ import {
     SettingsIcon,
     SunIcon,
     MoonIcon,
-    HistoryIcon
+    HistoryIcon,
+    EyeIcon
 } from './customIcons';
 
 // Export các custom icons - hoàn toàn tùy chỉnh, không phụ thuộc react-icons
@@ -83,6 +84,7 @@ export const Icons = {
     // Additional icons
     History: HistoryIcon,
     Clock: HistoryIcon, // Alias
+    Eye: EyeIcon,
     ArrowRightLeft: RefreshIcon // Using RefreshIcon as placeholder
 };
 

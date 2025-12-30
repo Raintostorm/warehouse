@@ -1,4 +1,5 @@
 const NotificationsS = require('../services/notificationsS');
+const logger = require('../utils/logger');
 
 const NotificationsC = {
     // Get all notifications
@@ -28,7 +29,7 @@ const NotificationsC = {
                 count: notifications.length
             });
         } catch (error) {
-            console.error('Get notifications error:', error);
+            logger.error('Get notifications error', { error: error.message, stack: error.stack });
             res.status(500).json({
                 success: false,
                 message: 'Failed to get notifications',
@@ -49,7 +50,7 @@ const NotificationsC = {
                 count: notifications.length
             });
         } catch (error) {
-            console.error('Get unread notifications error:', error);
+            logger.error('Get unread notifications error', { error: error.message, stack: error.stack });
             res.status(500).json({
                 success: false,
                 message: 'Failed to get unread notifications',
@@ -68,7 +69,7 @@ const NotificationsC = {
                 count: count
             });
         } catch (error) {
-            console.error('Get unread count error:', error);
+            logger.error('Get unread count error', { error: error.message, stack: error.stack });
             res.status(500).json({
                 success: false,
                 message: 'Failed to get unread count',
@@ -96,7 +97,7 @@ const NotificationsC = {
                 data: notification
             });
         } catch (error) {
-            console.error('Mark as read error:', error);
+            logger.error('Mark as read error', { error: error.message, stack: error.stack, notificationId: req.params.id });
             res.status(500).json({
                 success: false,
                 message: 'Failed to mark notification as read',
@@ -116,7 +117,7 @@ const NotificationsC = {
                 count: notifications.length
             });
         } catch (error) {
-            console.error('Mark all as read error:', error);
+            logger.error('Mark all as read error', { error: error.message, stack: error.stack });
             res.status(500).json({
                 success: false,
                 message: 'Failed to mark all notifications as read',
@@ -144,7 +145,7 @@ const NotificationsC = {
                 data: notification
             });
         } catch (error) {
-            console.error('Delete notification error:', error);
+            logger.error('Delete notification error', { error: error.message, stack: error.stack, notificationId: req.params.id });
             res.status(500).json({
                 success: false,
                 message: 'Failed to delete notification',
@@ -166,7 +167,7 @@ const NotificationsC = {
                 count: notifications.length
             });
         } catch (error) {
-            console.error('Check low stock error:', error);
+            logger.error('Check low stock error', { error: error.message, stack: error.stack, threshold: req.query.threshold });
             res.status(500).json({
                 success: false,
                 message: 'Failed to check low stock',

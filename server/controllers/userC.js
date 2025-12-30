@@ -1,6 +1,7 @@
 const UserS = require('../services/userS');
 const getActor = require('../utils/getActor');
 const auditLogger = require('../utils/auditLogger');
+const logger = require('../utils/logger');
 
 const UserC = {
     getAllUsers: async (req, res) => {
@@ -62,7 +63,7 @@ const UserC = {
                 });
             } catch (auditError) {
                 // Log but don't fail the request
-                console.warn('Audit logging failed:', auditError.message);
+                logger.warn('Audit logging failed', { error: auditError.message, stack: auditError.stack });
             }
 
             res.status(201).json({
@@ -110,7 +111,7 @@ const UserC = {
                 });
             } catch (auditError) {
                 // Log but don't fail the request
-                console.warn('Audit logging failed:', auditError.message);
+                logger.warn('Audit logging failed', { error: auditError.message, stack: auditError.stack });
             }
 
             res.json({
@@ -307,7 +308,7 @@ const UserC = {
                 });
             } catch (auditError) {
                 // Log but don't fail the request
-                console.warn('Audit logging failed:', auditError.message);
+                logger.warn('Audit logging failed', { error: auditError.message, stack: auditError.stack });
             }
 
             res.json({

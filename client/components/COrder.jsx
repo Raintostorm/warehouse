@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, supplierAPI, productDetailAPI } from '../services/api';
+import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, productDetailAPI } from '../services/api';
 import api from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useAuth } from '../src/contexts/useAuth';
@@ -269,29 +269,27 @@ const COrder = ({ onOrderCreated }) => {
     const [allWarehouses, setAllWarehouses] = useState([]); // All warehouses (unfiltered)
     const [products, setProducts] = useState([]); // Filtered products
     const [warehouses, setWarehouses] = useState([]); // Filtered warehouses
-    const [suppliers, setSuppliers] = useState([]);
     const [loadingProducts, setLoadingProducts] = useState(false);
     const [loadingWarehouses, setLoadingWarehouses] = useState(false);
-    const [loadingSuppliers, setLoadingSuppliers] = useState(false);
     const [selectedItems, setSelectedItems] = useState([]); // [{ productId, quantity, warehouseId }]
     const [formData, setFormData] = useState({
         id: '',
         type: '',
         date: new Date().toISOString().split('T')[0], // Default to today
         customerName: '',
-        supplierId: ''
+        supplierId: '', // Keep for backward compatibility
+        supplierIds: [] // New: support multiple suppliers
     });
     const [loading, setLoading] = useState(false);
     const [loadingOrderId, setLoadingOrderId] = useState(false);
     const [stockInfo, setStockInfo] = useState({}); // { productId_warehouseId: { available, requested } }
     const [productDetailsCache, setProductDetailsCache] = useState({}); // Cache product details for filtering
 
-    // Load products, warehouses, suppliers and order ID when modal opens
+    // Load products, warehouses and order ID when modal opens
     useEffect(() => {
         if (isModalOpen) {
             fetchProducts();
             fetchWarehouses();
-            fetchSuppliers();
             fetchNextOrderId(formData.type);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -312,7 +310,7 @@ const COrder = ({ onOrderCreated }) => {
             if (response.success) {
                 const orders = response.data || [];
                 const type = (orderType || '').toLowerCase();
-                
+
                 // Determine prefix based on order type
                 let prefix = 'ORD';
                 if (type === 'sale') {
@@ -371,7 +369,7 @@ const COrder = ({ onOrderCreated }) => {
                 const productsList = response.data || [];
                 setAllProducts(productsList);
                 setProducts(productsList);
-                
+
                 // Pre-fetch product details for all products to enable filtering
                 await fetchProductDetailsForProducts(productsList);
             } else {
@@ -432,7 +430,7 @@ const COrder = ({ onOrderCreated }) => {
     // Update filtered products and warehouses based on selections
     const updateFilteredLists = () => {
         const orderType = (formData.type || '').toLowerCase();
-        
+
         // If Sale, don't filter by warehouse (warehouse field will be hidden)
         if (orderType === 'sale') {
             setProducts(allProducts);
@@ -449,11 +447,11 @@ const COrder = ({ onOrderCreated }) => {
             .filter(Boolean);
 
         // Check if we have any items with products but no warehouse (products selected first)
-        const hasProductsWithoutWarehouse = selectedItems.some(item => 
+        const hasProductsWithoutWarehouse = selectedItems.some(item =>
             item.productId && !item.warehouseId
         );
         // Check if we have any items with warehouse but no product (warehouse selected first)
-        const hasWarehouseWithoutProduct = selectedItems.some(item => 
+        const hasWarehouseWithoutProduct = selectedItems.some(item =>
             item.warehouseId && !item.productId
         );
 
@@ -469,7 +467,7 @@ const COrder = ({ onOrderCreated }) => {
                     }
                 });
             });
-            const filteredWarehouses = allWarehouses.filter(w => 
+            const filteredWarehouses = allWarehouses.filter(w =>
                 availableWarehouseIds.has(w.id || w.Id)
             );
             setWarehouses(filteredWarehouses.length > 0 ? filteredWarehouses : allWarehouses);
@@ -491,7 +489,7 @@ const COrder = ({ onOrderCreated }) => {
                     }
                 });
             });
-            const filteredProducts = allProducts.filter(p => 
+            const filteredProducts = allProducts.filter(p =>
                 availableProductIds.has(p.id || p.Id)
             );
             setProducts(filteredProducts.length > 0 ? filteredProducts : allProducts);
@@ -504,24 +502,6 @@ const COrder = ({ onOrderCreated }) => {
         }
     };
 
-    const fetchSuppliers = async () => {
-        try {
-            setLoadingSuppliers(true);
-            const response = await supplierAPI.getAllSuppliers();
-            if (response.success) {
-                const suppliersList = response.data || [];
-                setSuppliers(suppliersList);
-            } else {
-                console.error('Failed to fetch suppliers:', response);
-                showError('Failed to load suppliers list');
-            }
-        } catch (err) {
-            console.error('Error fetching suppliers:', err);
-            showError('Failed to load suppliers list: ' + (err.message || 'Unknown error'));
-        } finally {
-            setLoadingSuppliers(false);
-        }
-    };
 
     const handleChange = (e) => {
         const newFormData = {
@@ -529,7 +509,7 @@ const COrder = ({ onOrderCreated }) => {
             [e.target.name]: e.target.value
         };
         setFormData(newFormData);
-        
+
         // If type changes, regenerate order ID
         if (e.target.name === 'type') {
             fetchNextOrderId(e.target.value);
@@ -538,13 +518,19 @@ const COrder = ({ onOrderCreated }) => {
                 ...prev,
                 type: e.target.value,
                 customerName: e.target.value.toLowerCase() === 'sale' ? prev.customerName : '',
-                supplierId: e.target.value.toLowerCase() === 'import' ? prev.supplierId : ''
+                supplierId: '',
+                supplierIds: []
             }));
         }
     };
 
     const handleAddProduct = () => {
-        setSelectedItems([...selectedItems, { productId: '', quantity: 1, warehouseId: '' }]);
+        const newItem = {
+            productId: '',
+            quantity: 1,
+            warehouseId: ''
+        };
+        setSelectedItems([...selectedItems, newItem]);
     };
 
     const handleRemoveProduct = (index) => {
@@ -561,11 +547,11 @@ const COrder = ({ onOrderCreated }) => {
             const response = await productDetailAPI.getProductDetailsByProductId(item.productId);
             if (response.success) {
                 const productDetails = response.data || [];
-                const detail = productDetails.find(pd => 
+                const detail = productDetails.find(pd =>
                     (pd.wid || pd.warehouse_id || pd.warehouseId) === item.warehouseId
                 );
                 const available = detail ? (detail.number || 0) : 0;
-                
+
                 setStockInfo(prev => ({
                     ...prev,
                     [`${item.productId}_${item.warehouseId}`]: {
@@ -616,11 +602,6 @@ const COrder = ({ onOrderCreated }) => {
                 showError('Customer name is required for sale orders');
                 return;
             }
-        } else if (orderType === 'import') {
-            if (!formData.supplierId || formData.supplierId.trim() === '') {
-                showError('Supplier is required for import orders');
-                return;
-            }
         }
 
         // Validation
@@ -635,12 +616,24 @@ const COrder = ({ onOrderCreated }) => {
             if (orderType === 'sale') {
                 return basicInvalid;
             }
+            // For import, validate that product has supplier_id
+            if (orderType === 'import') {
+                if (basicInvalid || !item.warehouseId) return true;
+                // Check if product has supplier_id
+                const product = products.find(p => (p.id || p.Id) === item.productId);
+                if (!product || !(product.supplier_id || product.supplierId)) {
+                    return true; // Invalid if product doesn't have supplier
+                }
+                return false;
+            }
             return basicInvalid || !item.warehouseId;
         });
         if (hasInvalidItems) {
-            const errorMsg = orderType === 'sale' 
+            const errorMsg = orderType === 'sale'
                 ? 'Please select products and enter valid quantities for all items'
-                : 'Please select products, warehouses, and enter valid quantities for all items';
+                : orderType === 'import'
+                    ? 'Please select products and warehouses. All products must have a supplier assigned.'
+                    : 'Please select products, warehouses, and enter valid quantities for all items';
             showError(errorMsg);
             return;
         }
@@ -676,68 +669,144 @@ const COrder = ({ onOrderCreated }) => {
         setLoading(true);
 
         try {
-            const total = calculateTotal();
             const userId = user?.id || user?.Id || '';
 
-            // Create order first (backend will auto-generate ID if not provided)
-            const orderData = {
-                ...(formData.id && { id: formData.id }), // Only include id if it exists
-                type: orderType, // Use lowercase
-                date: formData.date,
-                uId: userId,
-                total: total
-            };
+            // For import orders, group items by supplier (from product) and create one order per supplier
+            if (orderType === 'import') {
+                // Group items by supplier_id from product
+                const itemsBySupplier = {};
+                selectedItems.forEach(item => {
+                    const product = products.find(p => (p.id || p.Id) === item.productId);
+                    if (!product) return; // Skip items without valid product
 
-            // Add type-specific fields
-            if (orderType === 'sale') {
-                orderData.customerName = formData.customerName;
-            } else if (orderType === 'import') {
-                orderData.supplierId = formData.supplierId;
-            }
+                    // Get supplier_id from product
+                    const supplierId = product.supplier_id || product.supplierId;
+                    if (!supplierId) {
+                        throw new Error(`Product "${product.name || product.Name || item.productId}" does not have a supplier assigned. Please assign a supplier to this product first.`);
+                    }
 
-            const orderResponse = await orderAPI.createOrder(orderData);
+                    if (!itemsBySupplier[supplierId]) {
+                        itemsBySupplier[supplierId] = [];
+                    }
+                    itemsBySupplier[supplierId].push(item);
+                });
 
-            // Get the actual order ID from response (in case backend generated it)
-            const createdOrderId = orderResponse.data?.id || orderResponse.data?.Id || formData.id;
-
-            if (!orderResponse.success) {
-                throw new Error(orderResponse.message || 'Failed to create order');
-            }
-
-            // Create order details for each selected product with warehouse
-            const orderDetailsPromises = selectedItems.map(item => {
-                // For Sale orders, don't specify warehouse - backend will find one with stock
-                // For Import/Export orders, use the selected warehouse
-                const warehouseId = orderType === 'sale' 
-                    ? null // Backend will automatically find warehouse with stock
-                    : item.warehouseId;
-                
-                const orderDetailData = {
-                    oid: createdOrderId, // Use the actual order ID from response
-                    pid: item.productId,
-                    number: item.quantity,
-                    note: ''
-                };
-                
-                // Only include warehouse fields if warehouseId is provided
-                if (warehouseId) {
-                    orderDetailData.wid = warehouseId;
-                    orderDetailData.warehouse_id = warehouseId;
+                const supplierIds = Object.keys(itemsBySupplier);
+                if (supplierIds.length === 0) {
+                    throw new Error('No items with valid suppliers found');
                 }
-                
-                return orderDetailAPI.createOrderDetail(orderDetailData);
-            });
 
-            await Promise.all(orderDetailsPromises);
+                // Create one order per supplier
+                const orderPromises = supplierIds.map(async (supplierId) => {
+                    const itemsForSupplier = itemsBySupplier[supplierId];
 
-            showSuccess('Order created successfully!');
+                    // Calculate total for this supplier's items
+                    const supplierTotal = itemsForSupplier.reduce((sum, item) => {
+                        const product = products.find(p => (p.id || p.Id) === item.productId);
+                        if (!product) return sum;
+                        const price = product.price || product.Price || 0;
+                        return sum + (price * (item.quantity || 0));
+                    }, 0);
+
+                    const orderData = {
+                        type: orderType,
+                        date: formData.date,
+                        uId: userId,
+                        total: supplierTotal,
+                        supplierId: supplierId
+                    };
+
+                    const orderResponse = await orderAPI.createOrder(orderData);
+                    const createdOrderId = orderResponse.data?.id || orderResponse.data?.Id;
+
+                    if (!orderResponse.success) {
+                        throw new Error(orderResponse.message || `Failed to create order for supplier ${supplierId}`);
+                    }
+
+                    // Create order details for this supplier's items
+                    const orderDetailsPromises = itemsForSupplier.map(item => {
+                        const orderDetailData = {
+                            oid: createdOrderId,
+                            pid: item.productId,
+                            number: item.quantity,
+                            note: '',
+                            wid: item.warehouseId,
+                            warehouse_id: item.warehouseId
+                        };
+                        return orderDetailAPI.createOrderDetail(orderDetailData);
+                    });
+
+                    await Promise.all(orderDetailsPromises);
+                    return createdOrderId;
+                });
+
+                await Promise.all(orderPromises);
+                showSuccess(`Successfully created ${supplierIds.length} import order(s)`);
+            } else {
+                // Single order (sale or export)
+                const total = calculateTotal();
+                const orderData = {
+                    // KHÔNG gửi id - để backend tự generate để tránh duplicate key error
+                    type: orderType, // Use lowercase
+                    date: formData.date,
+                    uId: userId,
+                    total: total
+                };
+
+                // Add type-specific fields
+                if (orderType === 'sale') {
+                    orderData.customerName = formData.customerName;
+                }
+
+                const orderResponse = await orderAPI.createOrder(orderData);
+
+                // Get the actual order ID from response (backend always generates it)
+                const createdOrderId = orderResponse.data?.id || orderResponse.data?.Id;
+                if (!createdOrderId) {
+                    throw new Error('Failed to get order ID from server response');
+                }
+
+                if (!orderResponse.success) {
+                    throw new Error(orderResponse.message || 'Failed to create order');
+                }
+
+                // Create order details for each selected product with warehouse
+                const orderDetailsPromises = selectedItems.map(item => {
+                    // For Sale orders, don't specify warehouse - backend will find one with stock
+                    // For Export orders, use the selected warehouse
+                    const warehouseId = orderType === 'sale'
+                        ? null // Backend will automatically find warehouse with stock
+                        : item.warehouseId;
+
+                    const orderDetailData = {
+                        oid: createdOrderId, // Use the actual order ID from response
+                        pid: item.productId,
+                        number: item.quantity,
+                        note: ''
+                    };
+
+                    // Only include warehouse fields if warehouseId is provided
+                    if (warehouseId) {
+                        orderDetailData.wid = warehouseId;
+                        orderDetailData.warehouse_id = warehouseId;
+                    }
+
+                    return orderDetailAPI.createOrderDetail(orderDetailData);
+                });
+
+                await Promise.all(orderDetailsPromises);
+
+                showSuccess('Order created successfully!');
+            }
+
             // Reset form but keep modal open for next order
             setFormData({
                 id: '', // Will be auto-filled when modal reopens
                 type: '',
                 date: new Date().toISOString().split('T')[0],
                 customerName: '',
-                supplierId: ''
+                supplierId: '',
+                supplierIds: []
             });
             setSelectedItems([]);
             setStockInfo({});
@@ -755,15 +824,16 @@ const COrder = ({ onOrderCreated }) => {
 
     const handleClose = () => {
         setIsModalOpen(false);
-            setFormData({
-                id: '',
-                type: '',
-                date: new Date().toISOString().split('T')[0],
-                customerName: '',
-                supplierId: ''
-            });
-            setSelectedItems([]);
-            setStockInfo({});
+        setFormData({
+            id: '',
+            type: '',
+            date: new Date().toISOString().split('T')[0],
+            customerName: '',
+            supplierId: '',
+            supplierIds: []
+        });
+        setSelectedItems([]);
+        setStockInfo({});
     };
 
 
@@ -807,7 +877,7 @@ const COrder = ({ onOrderCreated }) => {
                 isOpen={isModalOpen}
                 onClose={handleClose}
                 title="Create New Order"
-                size="large"
+                size="xlarge"
             >
                 <form onSubmit={handleSubmit}>
                     {/* Basic Order Info */}
@@ -923,41 +993,6 @@ const COrder = ({ onOrderCreated }) => {
                                 />
                             </div>
                         )}
-                        {(formData.type || '').toLowerCase() === 'import' && (
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                    Supplier <span style={{ color: '#ef4444' }}>*</span>
-                                </label>
-                                <select
-                                    name="supplierId"
-                                    value={formData.supplierId}
-                                    onChange={handleChange}
-                                    required
-                                    disabled={loadingSuppliers}
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px 16px',
-                                        border: '1px solid #cbd5e1',
-                                        borderRadius: '8px',
-                                        fontSize: '14px',
-                                        outline: 'none',
-                                        boxSizing: 'border-box',
-                                        transition: 'all 0.2s',
-                                        cursor: 'pointer',
-                                        backgroundColor: loadingSuppliers ? '#f1f5f9' : 'white'
-                                    }}
-                                    onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                                >
-                                    <option value="">{loadingSuppliers ? 'Loading...' : 'Select supplier'}</option>
-                                    {suppliers.map(supplier => (
-                                        <option key={supplier.id || supplier.Id} value={supplier.id || supplier.Id}>
-                                            {supplier.name || supplier.Name || supplier.id || supplier.Id}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
                         <div>
                             <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
                                 User ID
@@ -1071,10 +1106,12 @@ const COrder = ({ onOrderCreated }) => {
                                                 padding: '8px 10px',
                                                 borderBottom: index < selectedItems.length - 1 ? '1px solid #e5e7eb' : 'none',
                                                 display: 'grid',
-                                                gridTemplateColumns: (formData.type || '').toLowerCase() === 'sale' 
-                                                    ? '2fr 1fr 1fr 1fr auto' 
-                                                    : '2fr 1fr 1fr 1fr 1fr auto',
-                                                gap: '6px',
+                                                gridTemplateColumns: (formData.type || '').toLowerCase() === 'sale'
+                                                    ? '3fr 1.2fr 1fr 1fr auto'
+                                                    : (formData.type || '').toLowerCase() === 'import'
+                                                        ? '3fr 1.2fr 1.2fr 1fr auto'
+                                                        : '3fr 1.2fr 1fr 1fr 1fr auto',
+                                                gap: '8px',
                                                 alignItems: 'center',
                                                 minHeight: '50px'
                                             }}
@@ -1127,30 +1164,34 @@ const COrder = ({ onOrderCreated }) => {
                                                 placeholder="Qty"
                                                 required
                                                 style={{
-                                                    padding: '8px 10px',
+                                                    padding: '6px 8px',
                                                     border: '1px solid #cbd5e1',
                                                     borderRadius: '6px',
                                                     fontSize: '13px',
-                                                    outline: 'none'
+                                                    outline: 'none',
+                                                    width: '100%',
+                                                    maxWidth: '80px'
                                                 }}
                                             />
-                                            <div style={{
-                                                padding: '8px 6px',
-                                                textAlign: 'right',
-                                                fontWeight: '600',
-                                                color: '#475569',
-                                                fontSize: '13px'
-                                            }}>
-                                                {new Intl.NumberFormat('vi-VN').format(itemTotal)} đ
-                                            </div>
+                                            {((formData.type || '').toLowerCase() !== 'import') && (
+                                                <div style={{
+                                                    padding: '8px 6px',
+                                                    textAlign: 'right',
+                                                    fontWeight: '600',
+                                                    color: '#475569',
+                                                    fontSize: '13px'
+                                                }}>
+                                                    {new Intl.NumberFormat('vi-VN').format(itemTotal)} đ
+                                                </div>
+                                            )}
                                             <div style={{
                                                 padding: '8px 6px',
                                                 fontSize: '11px',
-                                                color: item.productId && item.warehouseId && stockInfo[`${item.productId}_${item.warehouseId}`] 
+                                                color: item.productId && item.warehouseId && stockInfo[`${item.productId}_${item.warehouseId}`]
                                                     ? (stockInfo[`${item.productId}_${item.warehouseId}`].available >= (item.quantity || 0) ? '#10b981' : '#ef4444')
                                                     : '#64748b'
                                             }}>
-                                                {item.productId && item.warehouseId && stockInfo[`${item.productId}_${item.warehouseId}`] 
+                                                {item.productId && item.warehouseId && stockInfo[`${item.productId}_${item.warehouseId}`]
                                                     ? `Stock: ${stockInfo[`${item.productId}_${item.warehouseId}`].available}`
                                                     : ''
                                                 }

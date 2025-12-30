@@ -1,4 +1,5 @@
 const ExportS = require('../services/exportS');
+const logger = require('../utils/logger');
 
 const ExportC = {
     exportToExcel: async (req, res) => {
@@ -14,7 +15,7 @@ const ExportC = {
                 res.status(500).json(result);
             }
         } catch (error) {
-            console.error('Export controller error:', error);
+            logger.error('Export controller error', { error: error.message, stack: error.stack, table: req.params.table, type: 'excel' });
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',
@@ -37,7 +38,7 @@ const ExportC = {
                 res.status(500).json(result);
             }
         } catch (error) {
-            console.error('Export CSV controller error:', error);
+            logger.error('Export CSV controller error', { error: error.message, stack: error.stack, table: req.params.table, type: 'csv' });
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',

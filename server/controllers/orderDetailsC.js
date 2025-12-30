@@ -1,52 +1,29 @@
 const OrderDetailsS = require('../services/orderDetailsS');
+const { sendSuccess, sendError } = require('../utils/controllerHelper');
 
 const OrderDetailsC = {
     getAllOrderDetails: async (req, res) => {
         try {
             const orderDetails = await OrderDetailsS.findAll();
-            res.json({
-                success: true,
-                message: 'Order details fetched successfully',
-                data: orderDetails
-            });
+            return sendSuccess(res, orderDetails, 'Order details fetched successfully');
         } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch order details',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch order details');
         }
     },
     getOrderDetailsByOrderId: async (req, res) => {
         try {
             const orderDetails = await OrderDetailsS.findByOrderId(req.params.oid);
-            res.json({
-                success: true,
-                message: 'Order details fetched successfully',
-                data: orderDetails
-            });
+            return sendSuccess(res, orderDetails, 'Order details fetched successfully');
         } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch order details',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch order details');
         }
     },
     getOrderDetailsByProductId: async (req, res) => {
         try {
             const orderDetails = await OrderDetailsS.findByProductId(req.params.pid);
-            res.json({
-                success: true,
-                message: 'Order details fetched successfully',
-                data: orderDetails
-            });
+            return sendSuccess(res, orderDetails, 'Order details fetched successfully');
         } catch (error) {
-            res.status(500).json({
-                success: false,
-                message: 'Failed to fetch order details',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch order details');
         }
     },
     createOrderDetail: async (req, res) => {
@@ -60,23 +37,10 @@ const OrderDetailsC = {
             // Stock changes are now handled in OrderDetailsS.createOrderDetail()
             // No need for duplicate logic here
             
-            res.status(201).json({
-                success: true,
-                message: 'Order detail created successfully',
-                data: orderDetail
-            });
+            return sendSuccess(res, orderDetail, 'Order detail created successfully', 201);
         } catch (error) {
-            let statusCode = 500;
-            if (error.message.includes('already exists')) {
-                statusCode = 409;
-            } else if (error.message.includes('Missing required fields')) {
-                statusCode = 400;
-            }
-            res.status(statusCode).json({
-                success: false,
-                message: 'Failed to create order detail',
-                error: error.message
-            });
+            // sendError will automatically determine status code based on error message
+            return sendError(res, error, 'Failed to create order detail');
         }
     },
     updateOrderDetail: async (req, res) => {
@@ -85,29 +49,13 @@ const OrderDetailsC = {
             const wid = req.params.wid || req.body.wid || req.body.warehouse_id || req.body.warehouseId;
             
             if (!wid) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Missing required field: warehouse_id',
-                    error: 'warehouse_id is required for updating order details'
-                });
+                return sendError(res, new Error('warehouse_id is required for updating order details'), 'Missing required field: warehouse_id', 400);
             }
 
             const orderDetail = await OrderDetailsS.updateOrderDetail(oid, pid, wid, req.body);
-            res.json({
-                success: true,
-                message: 'Order detail updated successfully',
-                data: orderDetail
-            });
+            return sendSuccess(res, orderDetail, 'Order detail updated successfully');
         } catch (error) {
-            let statusCode = 500;
-            if (error.message === 'Order detail not found') {
-                statusCode = 404;
-            }
-            res.status(statusCode).json({
-                success: false,
-                message: 'Failed to update order detail',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to update order detail');
         }
     },
     deleteOrderDetail: async (req, res) => {
@@ -115,21 +63,9 @@ const OrderDetailsC = {
             const { oid, pid } = req.params;
             const wid = req.params.wid || req.body.wid || req.body.warehouse_id || req.body.warehouseId;
             const orderDetail = await OrderDetailsS.deleteOrderDetail(oid, pid, wid);
-            res.json({
-                success: true,
-                message: 'Order detail deleted successfully',
-                data: orderDetail
-            });
+            return sendSuccess(res, orderDetail, 'Order detail deleted successfully');
         } catch (error) {
-            let statusCode = 500;
-            if (error.message === 'Order detail not found') {
-                statusCode = 404;
-            }
-            res.status(statusCode).json({
-                success: false,
-                message: 'Failed to delete order detail',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to delete order detail');
         }
     }
 };

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { paymentAPI, billAPI } from '../services/api';
+import { paymentAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { Icons } from '../src/utils/icons';
+import { BUTTON_COLORS } from '../src/utils/buttonColors';
 import LoadingSpinner from '../src/components/LoadingSpinner';
 import ConfirmationModal from '../src/components/ConfirmationModal';
 import Pagination from '../src/components/Pagination';
@@ -14,10 +15,9 @@ const Payments = () => {
     const { success: showSuccess, error: showError } = useToast();
     const { isDark } = useTheme();
     const [payments, setPayments] = useState([]);
-    const [bills, setBills] = useState([]);
+    const [unpaidSaleOrders, setUnpaidSaleOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [selectedBillId, setSelectedBillId] = useState('');
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [editingPayment, setEditingPayment] = useState(null);
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, action: null, data: null });
@@ -42,11 +42,20 @@ const Payments = () => {
     useEffect(() => {
         fetchPayments();
         fetchGatewayStatus();
-        if (isAdmin) {
-            fetchUnpaidBills();
-        }
+        fetchUnpaidSaleOrders();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isAdmin]);
+    }, []);
+
+    const fetchUnpaidSaleOrders = async () => {
+        try {
+            const response = await paymentAPI.getUnpaidSaleOrders();
+            if (response.success) {
+                setUnpaidSaleOrders(response.data || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch unpaid sale orders:', err);
+        }
+    };
 
     const fetchGatewayStatus = async () => {
         try {
@@ -77,24 +86,10 @@ const Payments = () => {
         }
     };
 
-    const fetchUnpaidBills = async () => {
-        try {
-            const response = await billAPI.getUnpaidBills();
-            if (response.success) {
-                setBills(response.data);
-            }
-        } catch (err) {
-            console.error('Failed to fetch unpaid bills:', err);
-        }
-    };
-
     const handleCreatePayment = () => {
-        // Nếu có selectedBillId, tự động set bill và amount
-        const selectedBill = selectedBillId ? bills.find(b => b.id === selectedBillId) : null;
         setPaymentForm({
-            billId: selectedBillId || '',
-            orderId: selectedBill ? (selectedBill.order_id || '') : '',
-            amount: selectedBill ? (selectedBill.total_amount || 0).toString() : '',
+            orderId: '',
+            amount: '',
             paymentMethod: 'cash',
             paymentStatus: 'completed', // Cash mặc định là completed
             transactionId: '',
@@ -102,11 +97,12 @@ const Payments = () => {
         });
         setEditingPayment(null);
         setShowPaymentModal(true);
+        // Refresh unpaid orders list
+        fetchUnpaidSaleOrders();
     };
 
     const handleEditPayment = (payment) => {
         setPaymentForm({
-            billId: payment.bill_id || payment.billId || '', // Include billId
             orderId: payment.order_id,
             amount: payment.amount,
             paymentMethod: payment.payment_method,
@@ -132,9 +128,7 @@ const Payments = () => {
             const response = await paymentAPI.deletePayment(id);
             if (response.success) {
                 fetchPayments();
-                if (isAdmin) {
-                    fetchUnpaidBills(); // Refresh unpaid bills list after deletion
-                }
+                fetchUnpaidSaleOrders(); // Refresh unpaid orders list
                 showSuccess('Payment deleted successfully!');
             } else {
                 showError(response.message || 'Failed to delete payment');
@@ -198,7 +192,6 @@ const Payments = () => {
 
             if (editingPayment) {
                 const response = await paymentAPI.updatePayment(editingPayment.id, {
-                    billId: paymentForm.billId || null, // Include billId if available
                     orderId: paymentForm.orderId,
                     amount: parseFloat(paymentForm.amount),
                     paymentMethod: paymentForm.paymentMethod,
@@ -210,16 +203,13 @@ const Payments = () => {
                 if (response.success) {
                     showSuccess('Cập nhật thanh toán thành công!');
                     fetchPayments();
-                    if (isAdmin) {
-                        fetchUnpaidBills(); // Refresh unpaid bills list
-                    }
+                    fetchUnpaidSaleOrders(); // Refresh unpaid orders list
                     setShowPaymentModal(false);
                 } else {
                     showError(response.message || 'Không thể cập nhật thanh toán');
                 }
             } else {
                 const response = await paymentAPI.createPayment({
-                    billId: paymentForm.billId || null, // Include billId if available
                     orderId: paymentForm.orderId,
                     amount: parseFloat(paymentForm.amount),
                     paymentMethod: paymentForm.paymentMethod,
@@ -231,13 +221,10 @@ const Payments = () => {
                 if (response.success) {
                     showSuccess(isCash ? 'Thanh toán tiền mặt đã được ghi nhận!' : 'Tạo thanh toán thành công!');
                     fetchPayments();
-                    if (isAdmin) {
-                        fetchUnpaidBills(); // Refresh unpaid bills list
-                    }
+                    fetchUnpaidSaleOrders(); // Refresh unpaid orders list
                     setShowPaymentModal(false);
                     // Reset form
                     setPaymentForm({
-                        billId: '',
                         orderId: '',
                         amount: '',
                         paymentMethod: 'cash',
@@ -304,15 +291,10 @@ const Payments = () => {
 
     // Filter payments
     const filteredPayments = payments.filter(payment => {
-        // Filter by selectedBillId if set
-        if (selectedBillId && payment.bill_id !== selectedBillId) {
-            return false;
-        }
         if (!searchTerm) return true;
         const term = searchTerm.toLowerCase();
         return (
             payment.id?.toLowerCase().includes(term) ||
-            payment.bill_id?.toLowerCase().includes(term) ||
             payment.order_id?.toLowerCase().includes(term) ||
             payment.payment_method?.toLowerCase().includes(term) ||
             payment.payment_status?.toLowerCase().includes(term) ||
@@ -355,7 +337,7 @@ const Payments = () => {
                     style={{
                         marginTop: '12px',
                         padding: '8px 16px',
-                        background: 'linear-gradient(135deg, #475569 0%, #334155 100%)',
+                        background: BUTTON_COLORS.primary,
                         color: 'white',
                         border: 'none',
                         borderRadius: '6px',
@@ -497,41 +479,7 @@ const Payments = () => {
                 </div>
 
                 {/* Order Filter (Admin only) */}
-                {isAdmin && (
-                    <div style={{ marginBottom: '24px' }}>
-                        <label style={{
-                            display: 'block',
-                            marginBottom: '8px',
-                            color: textSecondary,
-                            fontSize: '14px',
-                            fontWeight: '600'
-                        }}>
-                            Filter by Bill:
-                        </label>
-                        <select
-                            value={selectedBillId}
-                            onChange={(e) => setSelectedBillId(e.target.value)}
-                            style={{
-                                padding: '12px 16px',
-                                border: `2px solid ${borderColor}`,
-                                borderRadius: '12px',
-                                fontSize: '15px',
-                                backgroundColor: cardBg,
-                                color: textPrimary,
-                                outline: 'none',
-                                cursor: 'pointer',
-                                minWidth: '200px'
-                            }}
-                        >
-                            <option value="">All Bills</option>
-                            {bills.map(bill => (
-                                <option key={bill.id} value={bill.id}>
-                                    {bill.id} - Order: {bill.order_id} ({formatCurrency(bill.total_amount || 0)})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
+                {/* Bill filter đã được xóa - bills không còn được sử dụng */}
 
                 {/* Payments Table */}
                 <div style={{
@@ -702,7 +650,7 @@ const Payments = () => {
                                                         onClick={() => handleEditPayment(payment)}
                                                         style={{
                                                             padding: '8px 16px',
-                                                            background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                            background: BUTTON_COLORS.edit,
                                                             color: 'white',
                                                             border: 'none',
                                                             borderRadius: '10px',
@@ -730,7 +678,7 @@ const Payments = () => {
                                                         onClick={() => handleDeletePayment(payment.id)}
                                                         style={{
                                                             padding: '8px 16px',
-                                                            background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                            background: BUTTON_COLORS.delete,
                                                             color: 'white',
                                                             border: 'none',
                                                             borderRadius: '10px',
@@ -815,51 +763,60 @@ const Payments = () => {
                             {editingPayment ? 'Chỉnh sửa thanh toán' : 'Tạo thanh toán mới'}
                         </h2>
                         <form onSubmit={handleSubmitPayment}>
-                            {isAdmin && (
-                                <div style={{ marginBottom: '20px' }}>
-                                    <label style={{
-                                        display: 'block',
-                                        marginBottom: '8px',
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{
+                                    display: 'block',
+                                    marginBottom: '8px',
+                                    color: textSecondary,
+                                    fontSize: '14px',
+                                    fontWeight: '600'
+                                }}>
+                                    Order ID (Chọn đơn hàng chưa thanh toán) *
+                                </label>
+                                <select
+                                    value={paymentForm.orderId}
+                                    onChange={(e) => {
+                                        const selectedOrder = unpaidSaleOrders.find(o => o.id === e.target.value);
+                                        setPaymentForm({
+                                            ...paymentForm,
+                                            orderId: e.target.value,
+                                            // Tự động fill amount = số tiền còn thiếu
+                                            amount: selectedOrder ? selectedOrder.remaining.toString() : ''
+                                        });
+                                    }}
+                                    required
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: `2px solid ${borderColor}`,
+                                        borderRadius: '12px',
+                                        fontSize: '15px',
+                                        backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                                        color: textPrimary,
+                                        outline: 'none',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    <option value="">Chọn đơn hàng...</option>
+                                    {unpaidSaleOrders.map(order => (
+                                        <option key={order.id} value={order.id}>
+                                            {order.id} - {order.customer_name || 'N/A'} - 
+                                            Tổng: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.total)} - 
+                                            Còn thiếu: {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(order.remaining)}
+                                        </option>
+                                    ))}
+                                </select>
+                                {unpaidSaleOrders.length === 0 && (
+                                    <div style={{
+                                        marginTop: '8px',
+                                        fontSize: '13px',
                                         color: textSecondary,
-                                        fontSize: '14px',
-                                        fontWeight: '600'
+                                        fontStyle: 'italic'
                                     }}>
-                                        Đơn hàng (Bill) *
-                                    </label>
-                                    <select
-                                        value={paymentForm.billId}
-                                        onChange={(e) => {
-                                            const selectedBill = bills.find(b => b.id === e.target.value);
-                                            setPaymentForm({
-                                                ...paymentForm,
-                                                billId: e.target.value,
-                                                orderId: selectedBill ? (selectedBill.order_id || '') : '',
-                                                // Tự động lấy amount từ bill total
-                                                amount: selectedBill ? (selectedBill.total_amount || 0).toString() : ''
-                                            });
-                                        }}
-                                        required
-                                        style={{
-                                            width: '100%',
-                                            padding: '12px 16px',
-                                            border: `2px solid ${borderColor}`,
-                                            borderRadius: '12px',
-                                            fontSize: '15px',
-                                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                                            color: textPrimary,
-                                            outline: 'none',
-                                            cursor: 'pointer'
-                                        }}
-                                    >
-                                        <option value="">Chọn hóa đơn</option>
-                                        {bills.map(bill => (
-                                            <option key={bill.id} value={bill.id}>
-                                                {bill.id} - Order: {bill.order_id} ({formatCurrency(bill.total_amount || 0)})
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            )}
+                                        Không có đơn hàng sale nào chưa thanh toán
+                                    </div>
+                                )}
+                            </div>
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{
                                     display: 'block',
@@ -877,7 +834,7 @@ const Payments = () => {
                                     value={paymentForm.amount}
                                     onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
                                     required
-                                    placeholder="Tự động lấy từ đơn hàng"
+                                    placeholder="Nhập số tiền"
                                     style={{
                                         width: '100%',
                                         padding: '12px 16px',
@@ -889,18 +846,6 @@ const Payments = () => {
                                         outline: 'none'
                                     }}
                                 />
-                                {paymentForm.billId && (() => {
-                                    const selectedBill = bills.find(b => b.id === paymentForm.billId);
-                                    return selectedBill ? (
-                                        <div style={{
-                                            marginTop: '8px',
-                                            fontSize: '13px',
-                                            color: textSecondary
-                                        }}>
-                                            Tổng hóa đơn: <strong>{formatCurrency(selectedBill.total_amount || 0)}</strong>
-                                        </div>
-                                    ) : null;
-                                })()}
                             </div>
                             <div style={{ marginBottom: '20px' }}>
                                 <label style={{

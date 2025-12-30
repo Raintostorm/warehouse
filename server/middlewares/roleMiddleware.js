@@ -3,6 +3,8 @@
  * @param {string|string[]} allowedRoles - Role hoặc mảng roles được phép
  * @returns {Function} Express middleware function
  */
+const logger = require('../utils/logger');
+
 const roleMiddleware = (allowedRoles) => {
     return (req, res, next) => {
         try {
@@ -36,7 +38,11 @@ const roleMiddleware = (allowedRoles) => {
             // User có quyền, tiếp tục
             next();
         } catch (error) {
-            console.error('Role middleware error:', error);
+            logger.error('Role middleware error', { 
+                error: error.message, 
+                stack: error.stack,
+                allowedRoles: Array.isArray(allowedRoles) ? allowedRoles : [allowedRoles]
+            });
             return res.status(500).json({
                 success: false,
                 message: 'Error checking user permissions',

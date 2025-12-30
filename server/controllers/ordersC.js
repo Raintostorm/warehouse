@@ -3,6 +3,7 @@ const generateBillS = require('../services/generateBillS');
 const getActor = require('../utils/getActor');
 const auditLogger = require('../utils/auditLogger');
 const { sendSuccess, sendError } = require('../utils/controllerHelper');
+const logger = require('../utils/logger');
 
 const OrdersC = {
     getAllOrders: async (req, res) => {
@@ -79,7 +80,7 @@ const OrdersC = {
                 const NotificationsS = require('../services/notificationsS');
                 await NotificationsS.notifyNewOrder(order);
             } catch (notifError) {
-                console.error('Failed to create notification:', notifError);
+                logger.error('Failed to create notification', { error: notifError.message, stack: notifError.stack });
             }
 
             return sendSuccess(res, order, 'Order created successfully', 201);

@@ -4,6 +4,7 @@ const router = express.Router();
 const OrdersC = require('../controllers/ordersC');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const { apiLimiter } = require('../middlewares/rateLimiter');
 
 // Tất cả routes đều cần authentication
 router.use(authMiddleware);
@@ -12,8 +13,8 @@ router.use(authMiddleware);
 router.get('/', OrdersC.getAllOrders);
 router.get('/:id', OrdersC.getOrderById);
 
-// POST, PUT, DELETE - chỉ admin mới có quyền
-router.post('/', roleMiddleware('admin'), OrdersC.createOrder);
+// POST, PUT, DELETE - chỉ admin mới có quyền, với rate limiting
+router.post('/', apiLimiter, roleMiddleware('admin'), OrdersC.createOrder);
 router.put('/:id', roleMiddleware('admin'), OrdersC.updateOrder);
 router.delete('/:id', roleMiddleware('admin'), OrdersC.deleteOrder);
 
@@ -24,13 +25,17 @@ router.post('/:id/generate-bill', OrdersC.generateBill);
 router.post('/validate-stock', async (req, res) => {
     try {
         const StockValidationS = require('../services/stockValidationS');
+        const { validateOrderDetails } = require('../utils/validationHelper');
         const { orderDetails } = req.body;
 
-        if (!orderDetails || !Array.isArray(orderDetails) || orderDetails.length === 0) {
+        // Validate input structure
+        const inputValidation = validateOrderDetails(orderDetails);
+        if (!inputValidation.isValid) {
             return res.status(400).json({
                 success: false,
-                message: 'orderDetails array is required',
-                error: 'orderDetails must be a non-empty array'
+                message: 'Invalid input data',
+                error: inputValidation.errors.join('; '),
+                errors: inputValidation.errors
             });
         }
 
@@ -54,13 +59,17 @@ router.post('/validate-stock', async (req, res) => {
 router.post('/validate-stock-total', async (req, res) => {
     try {
         const StockValidationS = require('../services/stockValidationS');
+        const { validateOrderDetails } = require('../utils/validationHelper');
         const { orderDetails } = req.body;
 
-        if (!orderDetails || !Array.isArray(orderDetails) || orderDetails.length === 0) {
+        // Validate input structure
+        const inputValidation = validateOrderDetails(orderDetails);
+        if (!inputValidation.isValid) {
             return res.status(400).json({
                 success: false,
-                message: 'orderDetails array is required',
-                error: 'orderDetails must be a non-empty array'
+                message: 'Invalid input data',
+                error: inputValidation.errors.join('; '),
+                errors: inputValidation.errors
             });
         }
 

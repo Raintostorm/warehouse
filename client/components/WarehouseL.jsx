@@ -3,6 +3,7 @@ import { warehouseAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
+import { BUTTON_COLORS } from '../src/utils/buttonColors';
 import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
@@ -301,7 +302,7 @@ const WarehouseL = () => {
                                                     onClick={() => setViewingId(warehouse.id)}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                        background: BUTTON_COLORS.view,
                                                         color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
@@ -314,15 +315,15 @@ const WarehouseL = () => {
                                                     }}
                                                     title="View warehouse inventory and images"
                                                 >
-                                                    <Icons.Search size={16} />
+                                                    <Icons.Eye size={16} />
                                                     View
                                                 </button>
                                                 <button
                                                     onClick={() => setEditingId(warehouse.id)}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: '#000',
+                                                        background: BUTTON_COLORS.edit,
+                                                        color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
@@ -341,7 +342,7 @@ const WarehouseL = () => {
                                                     onClick={() => handleDelete(warehouse.id)}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                                        background: BUTTON_COLORS.delete,
                                                         color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
@@ -354,7 +355,7 @@ const WarehouseL = () => {
                                                     }}
                                                 >
                                                     <Icons.Delete size={16} />
-                                                    Xóa
+                                                    Delete
                                                 </button>
                                             </div>
                                         </td>
@@ -377,10 +378,10 @@ const WarehouseL = () => {
                 isOpen={confirmModal.isOpen}
                 onClose={() => setConfirmModal({ isOpen: false, id: null })}
                 onConfirm={confirmDelete}
-                title="Xác nhận xóa"
-                message="Bạn có chắc chắn muốn xóa kho này?"
-                confirmText="Xóa"
-                cancelText="Hủy"
+                title="Confirm Delete"
+                message="Are you sure you want to delete this warehouse?"
+                confirmText="Delete"
+                cancelText="Cancel"
                 type="danger"
             />
 

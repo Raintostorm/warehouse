@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { productDetailAPI, warehouseAPI } from '../services/api';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
+import { BUTTON_COLORS } from '../src/utils/buttonColors';
 import FileManager from './FileManager';
 import Modal from '../src/components/Modal';
 
@@ -106,7 +107,7 @@ const WarehouseView = ({ warehouseId, onClose }) => {
                             onClick={() => setShowImages(true)}
                             style={{
                                 padding: '8px 16px',
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                background: BUTTON_COLORS.images,
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '6px',

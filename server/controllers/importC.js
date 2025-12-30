@@ -1,6 +1,7 @@
 const ImportS = require('../services/importS');
 const getActor = require('../utils/getActor');
 const multer = require('multer');
+const logger = require('../utils/logger');
 
 // Configure multer for file upload
 const upload = multer({
@@ -63,7 +64,7 @@ const ImportC = {
                 res.status(500).json(result);
             }
         } catch (error) {
-            console.error('Import controller error:', error);
+            logger.error('Import controller error', { error: error.message, stack: error.stack, table: req.params.table, filename: req.file?.originalname });
             res.status(500).json({
                 success: false,
                 message: 'Internal server error',

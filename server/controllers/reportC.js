@@ -1,4 +1,5 @@
 const ReportS = require('../services/reportS');
+const logger = require('../utils/logger');
 
 const ReportC = {
     // Generate Revenue Report
@@ -39,7 +40,7 @@ const ReportC = {
                 });
             }
         } catch (error) {
-            console.error('Generate Revenue Report error:', error);
+            logger.error('Generate Revenue Report error', { error: error.message, stack: error.stack, format: req.query.format, startDate: req.query.startDate, endDate: req.query.endDate });
             res.status(500).json({
                 success: false,
                 message: 'Failed to generate revenue report',
@@ -86,7 +87,7 @@ const ReportC = {
                 });
             }
         } catch (error) {
-            console.error('Generate Inventory Report error:', error);
+            logger.error('Generate Inventory Report error', { error: error.message, stack: error.stack, format: req.query.format });
             res.status(500).json({
                 success: false,
                 message: 'Failed to generate inventory report',
@@ -133,7 +134,7 @@ const ReportC = {
                 });
             }
         } catch (error) {
-            console.error('Generate Orders Report error:', error);
+            logger.error('Generate Orders Report error', { error: error.message, stack: error.stack, format: req.query.format, startDate: req.query.startDate, endDate: req.query.endDate, orderType: req.query.orderType });
             res.status(500).json({
                 success: false,
                 message: 'Failed to generate orders report',

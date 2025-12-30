@@ -84,5 +84,9 @@ dump.rdb
 *.crt
 *.cert
 
+# Uploaded files
+server/uploads/
+uploads/
+
 # Documentation (optional - uncomment if you want to exclude docs from git)
 # docs/

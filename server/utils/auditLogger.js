@@ -1,4 +1,5 @@
 const AuditLogS = require('../services/auditLogS');
+const logger = require('./logger');
 
 /**
  * Helper function to log audit events
@@ -50,7 +51,7 @@ const auditLogger = async (options) => {
         });
     } catch (error) {
         // Don't throw - audit logging should not break main operations
-        console.error('Audit logging error (non-critical):', error);
+        logger.error('Audit logging error (non-critical):', error);
     }
 };
 

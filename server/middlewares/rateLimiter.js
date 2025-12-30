@@ -1,6 +1,7 @@
 const rateLimit = require('express-rate-limit');
 const { RedisStore } = require('rate-limit-redis');
 const redis = require('../utils/redis');
+const logger = require('../utils/logger');
 
 // Helper để format thời gian
 const formatTime = (ms) => {
@@ -56,14 +57,31 @@ const createStore = (prefix) => {
 // Tạm thời disable trong development để debug
 // NODE_ENV có thể undefined (default là development)
 const isDevelopment = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+const isProduction = process.env.NODE_ENV === 'production';
 const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true' || isDevelopment;
+
+// Security check: Warn if rate limiting is disabled in production
+if (isProduction && disableRateLimit) {
+    logger.warn('⚠️  SECURITY WARNING: Rate limiting is DISABLED in PRODUCTION environment!', {
+        environment: process.env.NODE_ENV,
+        disableRateLimit: process.env.DISABLE_RATE_LIMIT,
+        message: 'This is a security risk. Rate limiting should be enabled in production.'
+    });
+    logger.error('⚠️  SECURITY WARNING: Rate limiting is DISABLED in PRODUCTION!');
+    logger.error('⚠️  Set DISABLE_RATE_LIMIT=false or remove it to enable rate limiting.');
+}
+
+// Log when rate limiting is disabled (for debugging)
+if (disableRateLimit && !isProduction) {
+    logger.info('Rate limiting disabled', {
+        environment: process.env.NODE_ENV || 'development',
+        reason: isDevelopment ? 'development mode' : 'DISABLE_RATE_LIMIT=true'
+    });
+}
 
 // Tạo một no-op middleware nếu disable
 const noOpLimiter = (req, res, next) => {
-    // Log để confirm rate limit đã disable
-    if (isDevelopment) {
-        // Silently pass through
-    }
+    // Silently pass through when disabled
     next();
 };
 

@@ -254,24 +254,25 @@ const AIS = {
 
         try {
             // Get system context
-            console.log('[AI] Getting system context for AI', { userRole });
             logger.info('Getting system context for AI', { userRole });
 
             let context;
             try {
                 context = await AIS.getSystemContext(userRole);
-                console.log('[AI] System context retrieved successfully');
                 logger.info('System context retrieved', {
                     statsCount: Object.keys(context.stats).length,
                     hasRevenue: !!context.revenue
                 });
             } catch (contextError) {
-                console.error('[AI] Error getting system context:', contextError);
+                logger.error('Error getting system context', {
+                    error: contextError.message,
+                    stack: contextError.stack
+                });
                 throw contextError;
             }
 
             // Build system prompt
-            console.log('[AI] Building system prompt...');
+            logger.debug('Building system prompt');
             const systemPrompt = `Bạn là AI Assistant cho hệ thống quản lý kho hàng (Warehouse Management System).
 
 THÔNG TIN HỆ THỐNG:
@@ -318,14 +319,13 @@ QUY TẮC:
             const fullPrompt = `${systemPrompt}${conversationText}\n\nNgười dùng: ${userMessage}\n\nAI:`;
 
             // Log prompt length for debugging
-            console.log('[AI] Prompt length:', fullPrompt.length, 'chars');
             logger.info('AI prompt length', {
                 length: fullPrompt.length,
                 messageLength: userMessage.length
             });
 
             // Generate response with automatic model fallback
-            console.log('[AI] Calling Gemini API...');
+            logger.debug('Calling Gemini API');
             let result, response, text;
             let modelUsed = null;
             let lastError = null;
@@ -333,12 +333,12 @@ QUY TẮC:
             // Try each model until one works
             for (const modelName of MODEL_NAMES) {
                 try {
-                    console.log(`[AI] Trying model: ${modelName}`);
+                    logger.debug(`Trying AI model: ${modelName}`);
                     const currentModel = genAI.getGenerativeModel({ model: modelName });
                     result = await currentModel.generateContent(fullPrompt);
                     response = await result.response;
                     modelUsed = modelName;
-                    console.log(`[AI] ✅ Success with model: ${modelName}`);
+                    logger.info(`Success with AI model: ${modelName}`);
 
                     // Check for blocked content or errors in response
                     if (response.promptFeedback?.blockReason) {
@@ -360,11 +360,14 @@ QUY TẮC:
                         apiError.message?.includes('not found') ||
                         apiError.message?.includes('is not found');
 
-                    console.log(`[AI] ❌ Model ${modelName} failed:`, apiError.message);
+                    logger.debug(`Model ${modelName} failed`, { 
+                        error: apiError.message,
+                        status: apiError.status 
+                    });
 
                     // If it's a 404 (model not found), try next model
                     if (is404) {
-                        console.log(`[AI] Model ${modelName} not found (404), trying next model...`);
+                        logger.debug(`Model ${modelName} not found (404), trying next model`);
                         continue; // Try next model
                     }
 
@@ -399,12 +402,12 @@ QUY TẮC:
 
                     for (const modelName of freshModels) {
                         try {
-                            console.log(`[AI] Retrying with model: ${modelName}`);
+                            logger.debug(`Retrying with AI model: ${modelName}`);
                             const currentModel = genAI.getGenerativeModel({ model: modelName });
                             result = await currentModel.generateContent(fullPrompt);
                             response = await result.response;
                             modelUsed = modelName;
-                            console.log(`[AI] ✅ Success with model: ${modelName}`);
+                            logger.info(`Success with AI model on retry: ${modelName}`);
 
                             if (response.promptFeedback?.blockReason) {
                                 throw new Error(`Content blocked: ${response.promptFeedback.blockReason}`);
@@ -419,7 +422,10 @@ QUY TẮC:
                             // Success! Break out of loop
                             break;
                         } catch (retryError) {
-                            console.log(`[AI] ❌ Model ${modelName} failed on retry:`, retryError.message);
+                            logger.debug(`Model ${modelName} failed on retry`, { 
+                                error: retryError.message,
+                                status: retryError.status 
+                            });
                             continue;
                         }
                     }
@@ -432,14 +438,9 @@ QUY TẮC:
                         errorName: lastError.name,
                         status: lastError.status,
                         modelsTried: MODEL_NAMES,
-                        freshModelsTried: freshModels || []
+                        freshModelsTried: freshModels || [],
+                        stack: lastError.stack
                     });
-
-                    console.error('=== Gemini API Error - All Models Failed ===');
-                    console.error('Last Error:', lastError.message);
-                    console.error('Status:', lastError.status);
-                    console.error('Models Tried:', MODEL_NAMES);
-                    console.error('Fresh Models Tried:', freshModels || []);
 
                     throw new Error(`All Gemini models failed. Last error: ${lastError.message}. Please check available models at https://ai.google.dev/models/gemini or verify your API key has access to Generative Language API.`);
                 }
@@ -460,15 +461,7 @@ QUY TẮC:
                 }
             };
         } catch (error) {
-            // Log full error details for debugging - ALWAYS log to console for immediate visibility
-            console.error('=== AI Error Details ===');
-            console.error('Error Message:', error.message);
-            console.error('Error Name:', error.name);
-            console.error('Error Code:', error.code);
-            console.error('Error Status:', error.status);
-            console.error('Error:', error);
-            console.error('Stack:', error.stack);
-
+            // Log full error details for debugging
             logger.error('Error generating AI response', {
                 error: error.message,
                 errorName: error.name,

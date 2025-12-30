@@ -1,5 +1,7 @@
 const StatisticsS = require('../services/statisticsS');
 const CacheService = require('../utils/cacheService');
+const { sendSuccess, sendError } = require('../utils/controllerHelper');
+const logger = require('../utils/logger');
 
 const StatisticsC = {
     getDashboardStats: async (req, res) => {
@@ -13,17 +15,13 @@ const StatisticsC = {
             const result = await StatisticsS.getDashboardStats();
             
             if (result.success) {
-                return res.status(200).json(result);
+                return sendSuccess(res, result.data, result.message || 'Dashboard stats fetched successfully');
             } else {
-                return res.status(500).json(result);
+                return sendError(res, new Error(result.error || 'Failed to fetch dashboard stats'), result.message || 'Failed to fetch dashboard stats');
             }
         } catch (error) {
-            console.error('Statistics controller error:', error);
-            return res.status(500).json({
-                success: false,
-                message: 'Internal server error',
-                error: error.message
-            });
+            logger.error('Statistics controller error', { error: error.message, stack: error.stack });
+            return sendError(res, error, 'Failed to fetch dashboard stats');
         }
     },
 
@@ -31,17 +29,9 @@ const StatisticsC = {
         try {
             const { period = 'month', days = 30 } = req.query;
             const trends = await StatisticsS.getSalesTrends(period, parseInt(days));
-            return res.status(200).json({
-                success: true,
-                data: trends,
-                message: 'Sales trends fetched successfully'
-            });
+            return sendSuccess(res, trends, 'Sales trends fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch sales trends',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch sales trends');
         }
     },
 
@@ -49,34 +39,18 @@ const StatisticsC = {
         try {
             const { limit = 10, sortBy = 'revenue' } = req.query;
             const performance = await StatisticsS.getProductPerformance(parseInt(limit), sortBy);
-            return res.status(200).json({
-                success: true,
-                data: performance,
-                message: 'Product performance fetched successfully'
-            });
+            return sendSuccess(res, performance, 'Product performance fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch product performance',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch product performance');
         }
     },
 
     getWarehouseUtilization: async (req, res) => {
         try {
             const utilization = await StatisticsS.getWarehouseUtilization();
-            return res.status(200).json({
-                success: true,
-                data: utilization,
-                message: 'Warehouse utilization fetched successfully'
-            });
+            return sendSuccess(res, utilization, 'Warehouse utilization fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch warehouse utilization',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch warehouse utilization');
         }
     },
 
@@ -84,17 +58,9 @@ const StatisticsC = {
         try {
             const { period = 'month', startDate, endDate } = req.query;
             const revenue = await StatisticsS.getRevenueByPeriod(period, startDate, endDate);
-            return res.status(200).json({
-                success: true,
-                data: revenue,
-                message: 'Revenue by period fetched successfully'
-            });
+            return sendSuccess(res, revenue, 'Revenue by period fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch revenue by period',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch revenue by period');
         }
     },
 
@@ -102,17 +68,9 @@ const StatisticsC = {
         try {
             const { days = 30 } = req.query;
             const turnover = await StatisticsS.getInventoryTurnover(parseInt(days));
-            return res.status(200).json({
-                success: true,
-                data: turnover,
-                message: 'Inventory turnover fetched successfully'
-            });
+            return sendSuccess(res, turnover, 'Inventory turnover fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch inventory turnover',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch inventory turnover');
         }
     },
 
@@ -120,34 +78,18 @@ const StatisticsC = {
         try {
             const { days = 30 } = req.query;
             const analytics = await StatisticsS.getCustomerAnalytics(parseInt(days));
-            return res.status(200).json({
-                success: true,
-                data: analytics,
-                message: 'Customer analytics fetched successfully'
-            });
+            return sendSuccess(res, analytics, 'Customer analytics fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch customer analytics',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch customer analytics');
         }
     },
 
     getSupplierAnalytics: async (req, res) => {
         try {
             const analytics = await StatisticsS.getSupplierAnalytics();
-            return res.status(200).json({
-                success: true,
-                data: analytics,
-                message: 'Supplier analytics fetched successfully'
-            });
+            return sendSuccess(res, analytics, 'Supplier analytics fetched successfully');
         } catch (error) {
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to fetch supplier analytics',
-                error: error.message
-            });
+            return sendError(res, error, 'Failed to fetch supplier analytics');
         }
     }
 };

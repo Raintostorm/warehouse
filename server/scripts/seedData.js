@@ -327,7 +327,7 @@ async function seedData() {
             },
             {
                 id: 'ORD004',
-                type: 'Sell',
+                type: 'Sale',
                 date: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U001',
                 customer_name: 'Nhà thầu DEF',
@@ -351,7 +351,7 @@ async function seedData() {
             },
             {
                 id: 'ORD007',
-                type: 'Sell',
+                type: 'Sale',
                 date: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U001',
                 customer_name: 'Nhà thầu JKL',

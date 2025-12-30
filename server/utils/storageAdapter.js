@@ -121,10 +121,28 @@ function getStorageAdapter() {
             return new LocalStorageAdapter(uploadDir);
         case 's3':
             // TODO: Implement S3 adapter
+            // Feature Request: AWS S3 Storage Adapter
+            // - Purpose: Enable cloud storage for file uploads using AWS S3
+            // - Requirements: 
+            //   * AWS SDK for JavaScript (@aws-sdk/client-s3)
+            //   * Environment variables: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME
+            //   * Implement S3StorageAdapter class extending StorageAdapter
+            //   * Handle file uploads, deletions, URL generation, and existence checks
+            // - Priority: Medium (local storage works for current needs)
+            // - Status: Not started
             logger.warn('S3 storage adapter not yet implemented, falling back to local');
             return new LocalStorageAdapter(uploadDir);
         case 'gcs':
             // TODO: Implement GCS adapter
+            // Feature Request: Google Cloud Storage Adapter
+            // - Purpose: Enable cloud storage for file uploads using Google Cloud Storage
+            // - Requirements:
+            //   * @google-cloud/storage package
+            //   * Environment variables: GCS_PROJECT_ID, GCS_KEY_FILE (or GCS_CREDENTIALS_JSON), GCS_BUCKET_NAME
+            //   * Implement GCSStorageAdapter class extending StorageAdapter
+            //   * Handle file uploads, deletions, URL generation, and existence checks
+            // - Priority: Medium (local storage works for current needs)
+            // - Status: Not started
             logger.warn('GCS storage adapter not yet implemented, falling back to local');
             return new LocalStorageAdapter(uploadDir);
         default:

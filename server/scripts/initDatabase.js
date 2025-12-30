@@ -99,40 +99,19 @@ const TABLES = {
         CREATE TABLE IF NOT EXISTS order_details (
             order_id VARCHAR(15),
             product_id VARCHAR(10),
+            warehouse_id VARCHAR(10),
             number INTEGER DEFAULT 0,
             note TEXT,
             actor TEXT,
-            PRIMARY KEY (order_id, product_id),
+            PRIMARY KEY (order_id, product_id, warehouse_id),
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
-            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
-        )
-    `,
-    bills: `
-        CREATE TABLE IF NOT EXISTS bills (
-            id VARCHAR(20) PRIMARY KEY,
-            order_id VARCHAR(15), -- Keep for backward compatibility, but can be NULL now
-            total_amount NUMERIC(14,2) NOT NULL,
-            status VARCHAR(20) DEFAULT 'pending',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP,
-            actor TEXT,
-            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
-        )
-    `,
-    bill_orders: `
-        CREATE TABLE IF NOT EXISTS bill_orders (
-            bill_id VARCHAR(20) NOT NULL,
-            order_id VARCHAR(15) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (bill_id, order_id),
-            FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE CASCADE,
-            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE
         )
     `,
     payments: `
         CREATE TABLE IF NOT EXISTS payments (
             id VARCHAR(20) PRIMARY KEY,
-            bill_id VARCHAR(20),
             order_id VARCHAR(15) NOT NULL,
             amount NUMERIC(14,2) NOT NULL,
             payment_method VARCHAR(50) NOT NULL,
@@ -143,7 +122,6 @@ const TABLES = {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
             actor TEXT,
-            FOREIGN KEY (bill_id) REFERENCES bills(id) ON DELETE SET NULL,
             FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
         )
     `,
@@ -233,58 +211,7 @@ const TABLES = {
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
     `,
-    stock_history: `
-        CREATE TABLE IF NOT EXISTS stock_history (
-            id SERIAL PRIMARY KEY,
-            product_id VARCHAR(10) NOT NULL,
-            warehouse_id VARCHAR(10),
-            transaction_type VARCHAR(20) NOT NULL,
-            quantity INTEGER NOT NULL,
-            previous_quantity INTEGER,
-            new_quantity INTEGER NOT NULL,
-            reference_id VARCHAR(50),
-            reference_type VARCHAR(50),
-            notes TEXT,
-            actor TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE SET NULL
-        )
-    `,
-    stock_transfers: `
-        CREATE TABLE IF NOT EXISTS stock_transfers (
-            id VARCHAR(20) PRIMARY KEY,
-            product_id VARCHAR(10) NOT NULL,
-            from_warehouse_id VARCHAR(10) NOT NULL,
-            to_warehouse_id VARCHAR(10) NOT NULL,
-            quantity INTEGER NOT NULL,
-            status VARCHAR(20) DEFAULT 'pending',
-            notes TEXT,
-            actor TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            completed_at TIMESTAMP,
-            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-            FOREIGN KEY (from_warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
-            FOREIGN KEY (to_warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE
-        )
-    `,
-    low_stock_alerts: `
-        CREATE TABLE IF NOT EXISTS low_stock_alerts (
-            id SERIAL PRIMARY KEY,
-            product_id VARCHAR(10) NOT NULL,
-            warehouse_id VARCHAR(10),
-            current_quantity INTEGER NOT NULL,
-            threshold INTEGER NOT NULL,
-            alert_level VARCHAR(20) DEFAULT 'warning',
-            is_resolved BOOLEAN DEFAULT false,
-            resolved_at TIMESTAMP,
-            resolved_by TEXT,
-            actor TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
-            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE SET NULL
-        )
-    `,
+    // Inventory tables đã được xóa - chỉ dùng product_details để track stock
     file_uploads: `
         CREATE TABLE IF NOT EXISTS file_uploads (
             id VARCHAR(20) PRIMARY KEY,
@@ -304,6 +231,24 @@ const TABLES = {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP
         )
+    `,
+    supplier_import_history: `
+        CREATE TABLE IF NOT EXISTS supplier_import_history (
+            id SERIAL PRIMARY KEY,
+            supplier_id VARCHAR(10) NOT NULL,
+            product_id VARCHAR(10) NOT NULL,
+            warehouse_id VARCHAR(10) NOT NULL,
+            order_id VARCHAR(15) NOT NULL,
+            quantity INTEGER NOT NULL,
+            import_date DATE NOT NULL,
+            notes TEXT,
+            actor TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE,
+            FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+        )
     `
 };
 
@@ -319,8 +264,6 @@ async function createTables() {
         'warehouses',
         'orders',
         'order_details',
-        'bills',
-        'bill_orders',
         'payments',
         'product_details',
         'warehouse_management',
@@ -329,10 +272,8 @@ async function createTables() {
         'audit_logs',
         'notifications',
         'password_resets',
-        'stock_history',
-        'stock_transfers',
-        'low_stock_alerts',
-        'file_uploads'
+        'file_uploads',
+        'supplier_import_history'
     ];
 
     for (const tableName of tableOrder) {
@@ -365,6 +306,71 @@ async function createTables() {
         console.warn('⚠️  Warning khi thêm supplier_id vào orders:', error.message);
     }
 
+    // Add warehouse_id column to order_details table if it doesn't exist (migration)
+    try {
+        await db.query(`
+            DO $$ 
+            BEGIN
+                -- Check if warehouse_id column exists
+                IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'order_details' AND column_name = 'warehouse_id'
+                ) THEN
+                    -- Add warehouse_id column
+                    ALTER TABLE order_details ADD COLUMN warehouse_id VARCHAR(10);
+                    
+                    -- Set default warehouse for existing records (if any)
+                    UPDATE order_details 
+                    SET warehouse_id = (SELECT id FROM warehouses LIMIT 1)
+                    WHERE warehouse_id IS NULL;
+                    
+                    -- Make warehouse_id NOT NULL
+                    ALTER TABLE order_details ALTER COLUMN warehouse_id SET NOT NULL;
+                    
+                    -- Add foreign key constraint
+                    ALTER TABLE order_details 
+                    ADD CONSTRAINT fk_order_details_warehouse 
+                    FOREIGN KEY (warehouse_id) REFERENCES warehouses(id) ON DELETE CASCADE;
+                    
+                    -- Drop old primary key if exists
+                    ALTER TABLE order_details DROP CONSTRAINT IF EXISTS order_details_pkey;
+                    
+                    -- Add new composite primary key with warehouse_id
+                    ALTER TABLE order_details 
+                    ADD PRIMARY KEY (order_id, product_id, warehouse_id);
+                    
+                    -- Create index for warehouse_id
+                    CREATE INDEX IF NOT EXISTS idx_order_details_warehouse_id ON order_details(warehouse_id);
+                END IF;
+            END $$;
+        `);
+        console.log('✅ Đã kiểm tra/ thêm warehouse_id vào order_details table');
+    } catch (error) {
+        console.warn('⚠️  Warning khi thêm warehouse_id vào order_details:', error.message);
+    }
+
+    // Create indexes for supplier_import_history if table exists
+    try {
+        await db.query(`
+            DO $$ 
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = 'supplier_import_history'
+                ) THEN
+                    CREATE INDEX IF NOT EXISTS idx_supplier_import_history_supplier ON supplier_import_history(supplier_id);
+                    CREATE INDEX IF NOT EXISTS idx_supplier_import_history_product ON supplier_import_history(product_id);
+                    CREATE INDEX IF NOT EXISTS idx_supplier_import_history_warehouse ON supplier_import_history(warehouse_id);
+                    CREATE INDEX IF NOT EXISTS idx_supplier_import_history_order ON supplier_import_history(order_id);
+                    CREATE INDEX IF NOT EXISTS idx_supplier_import_history_date ON supplier_import_history(import_date DESC);
+                END IF;
+            END $$;
+        `);
+        console.log('✅ Đã kiểm tra/ tạo indexes cho supplier_import_history table');
+    } catch (error) {
+        console.warn('⚠️  Warning khi tạo indexes cho supplier_import_history:', error.message);
+    }
+
     // Add inventory columns to products table if they don't exist
     try {
         await db.query(`
@@ -395,6 +401,20 @@ async function createTables() {
         console.log('Da them / kiem tra inventory columns trong products table');
     } catch (error) {
         console.error('Loi khi them inventory columns vao products table: ', error.message);
+    }
+
+    // Migration: Update orders with type "sell" to "sale"
+    try {
+        const result = await db.query(`
+            UPDATE orders 
+            SET type = 'Sale' 
+            WHERE LOWER(type) = 'sell'
+        `);
+        if (result.rowCount > 0) {
+            console.log(`✅ Đã cập nhật ${result.rowCount} orders từ type "sell" sang "sale"`);
+        }
+    } catch (error) {
+        console.warn('⚠️  Warning khi update orders type "sell" → "sale":', error.message);
     }
 }
 
@@ -727,7 +747,7 @@ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
         const today = new Date();
         const orders = [
             {
-                id: 'ORD001',
+                id: 'SA000001',
                 type: 'Sale',
                 date: new Date(today.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U001',
@@ -735,15 +755,15 @@ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
                 total: 4250000
             },
             {
-                id: 'ORD002',
+                id: 'IM000001',
                 type: 'Import',
                 date: new Date(today.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U002',
-                customer_name: 'Công ty Xi Măng Hà Tiên',
+                supplier_id: 'S001',
                 total: 8500000
             },
             {
-                id: 'ORD003',
+                id: 'SA000002',
                 type: 'Sale',
                 date: new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U003',
@@ -751,23 +771,23 @@ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
                 total: 12000000
             },
             {
-                id: 'ORD004',
-                type: 'Sell',
+                id: 'SA000003',
+                type: 'Sale',
                 date: new Date(today.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U001',
                 customer_name: 'Nhà thầu DEF',
                 total: 6800000
             },
             {
-                id: 'ORD005',
+                id: 'IM000002',
                 type: 'Import',
                 date: new Date(today.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U002',
-                customer_name: 'Công ty Sắt Thép Hòa Phát',
+                supplier_id: 'S002',
                 total: 15000000
             },
             {
-                id: 'ORD006',
+                id: 'SA000004',
                 type: 'Sale',
                 date: new Date(today.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U004',
@@ -775,15 +795,15 @@ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
                 total: 9500000
             },
             {
-                id: 'ORD007',
-                type: 'Sell',
+                id: 'SA000005',
+                type: 'Sale',
                 date: new Date(today.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U001',
                 customer_name: 'Nhà thầu JKL',
                 total: 5500000
             },
             {
-                id: 'ORD008',
+                id: 'SA000006',
                 type: 'Sale',
                 date: new Date(today.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
                 user_id: 'U005',
@@ -791,15 +811,15 @@ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
                 total: 7800000
             },
             {
-                id: 'ORD009',
+                id: 'IM000003',
                 type: 'Import',
                 date: today.toISOString().split('T')[0],
                 user_id: 'U002',
-                customer_name: 'Công ty Gạch Đồng Tâm',
+                supplier_id: 'S003',
                 total: 12000000
             },
             {
-                id: 'ORD010',
+                id: 'SA000007',
                 type: 'Sale',
                 date: today.toISOString().split('T')[0],
                 user_id: 'U003',
@@ -810,11 +830,27 @@ VALUES($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id) DO NOTHING`,
 
         for (const order of orders) {
             try {
-                await db.query(
-                    `INSERT INTO orders(id, type, date, user_id, customer_name, total)
+                // Build query dynamically based on order type
+                const orderType = (order.type || '').toLowerCase();
+                if (orderType === 'import' && order.supplier_id) {
+                    await db.query(
+                        `INSERT INTO orders(id, type, date, user_id, supplier_id, total)
 VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT(id) DO NOTHING`,
-                    [order.id, order.type, order.date, order.user_id, order.customer_name, order.total]
-                );
+                        [order.id, order.type, order.date, order.user_id, order.supplier_id, order.total]
+                    );
+                } else if ((orderType === 'sale' || orderType === 'sell') && order.customer_name) {
+                    await db.query(
+                        `INSERT INTO orders(id, type, date, user_id, customer_name, total)
+VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT(id) DO NOTHING`,
+                        [order.id, order.type, order.date, order.user_id, order.customer_name, order.total]
+                    );
+                } else {
+                    await db.query(
+                        `INSERT INTO orders(id, type, date, user_id, total)
+VALUES($1, $2, $3, $4, $5) ON CONFLICT(id) DO NOTHING`,
+                        [order.id, order.type, order.date, order.user_id, order.total]
+                    );
+                }
                 console.log(`Da seed order: ${order.id} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
@@ -824,43 +860,44 @@ VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT(id) DO NOTHING`,
         }
 
         // 7. Seed Order Details
+        // Map products to warehouses: P001,P010->W001, P002,P009,P013,P014->W002, P003,P004,P011,P012->W003, P005,P017->W004, P006,P015,P016->W005, P007,P008,P018->W006
         const orderDetails = [
-            { order_id: 'ORD001', product_id: 'P001', number: 50, note: 'Đơn hàng lớn' },
-            { order_id: 'ORD001', product_id: 'P002', number: 300, note: '' },
-            { order_id: 'ORD001', product_id: 'P007', number: 10, note: '' },
-            { order_id: 'ORD002', product_id: 'P001', number: 100, note: 'Nhập kho' },
-            { order_id: 'ORD002', product_id: 'P010', number: 50, note: '' },
-            { order_id: 'ORD003', product_id: 'P003', number: 500, note: '' },
-            { order_id: 'ORD003', product_id: 'P004', number: 300, note: '' },
-            { order_id: 'ORD003', product_id: 'P011', number: 200, note: '' },
-            { order_id: 'ORD004', product_id: 'P005', number: 5, note: 'Gỗ chất lượng cao' },
-            { order_id: 'ORD004', product_id: 'P017', number: 3, note: '' },
-            { order_id: 'ORD005', product_id: 'P003', number: 800, note: 'Nhập kho sắt thép' },
-            { order_id: 'ORD005', product_id: 'P004', number: 600, note: '' },
-            { order_id: 'ORD005', product_id: 'P012', number: 400, note: '' },
-            { order_id: 'ORD006', product_id: 'P009', number: 10, note: '' },
-            { order_id: 'ORD006', product_id: 'P014', number: 8, note: 'Gạch men cao cấp' },
-            { order_id: 'ORD007', product_id: 'P006', number: 50, note: '' },
-            { order_id: 'ORD007', product_id: 'P015', number: 30, note: '' },
-            { order_id: 'ORD007', product_id: 'P016', number: 20, note: '' },
-            { order_id: 'ORD008', product_id: 'P007', number: 20, note: '' },
-            { order_id: 'ORD008', product_id: 'P008', number: 15, note: '' },
-            { order_id: 'ORD008', product_id: 'P018', number: 12, note: '' },
-            { order_id: 'ORD009', product_id: 'P002', number: 5000, note: 'Nhập kho gạch' },
-            { order_id: 'ORD009', product_id: 'P013', number: 3000, note: '' },
-            { order_id: 'ORD010', product_id: 'P001', number: 80, note: '' },
-            { order_id: 'ORD010', product_id: 'P003', number: 400, note: '' },
-            { order_id: 'ORD010', product_id: 'P007', number: 15, note: '' }
+            { order_id: 'SA000001', product_id: 'P001', warehouse_id: 'W001', number: 50, note: 'Đơn hàng lớn' },
+            { order_id: 'SA000001', product_id: 'P002', warehouse_id: 'W002', number: 300, note: '' },
+            { order_id: 'SA000001', product_id: 'P007', warehouse_id: 'W006', number: 10, note: '' },
+            { order_id: 'IM000001', product_id: 'P001', warehouse_id: 'W001', number: 100, note: 'Nhập kho' },
+            { order_id: 'IM000001', product_id: 'P010', warehouse_id: 'W001', number: 50, note: '' },
+            { order_id: 'SA000002', product_id: 'P003', warehouse_id: 'W003', number: 500, note: '' },
+            { order_id: 'SA000002', product_id: 'P004', warehouse_id: 'W003', number: 300, note: '' },
+            { order_id: 'SA000002', product_id: 'P011', warehouse_id: 'W003', number: 200, note: '' },
+            { order_id: 'SA000003', product_id: 'P005', warehouse_id: 'W004', number: 5, note: 'Gỗ chất lượng cao' },
+            { order_id: 'SA000003', product_id: 'P017', warehouse_id: 'W004', number: 3, note: '' },
+            { order_id: 'IM000002', product_id: 'P003', warehouse_id: 'W003', number: 800, note: 'Nhập kho sắt thép' },
+            { order_id: 'IM000002', product_id: 'P004', warehouse_id: 'W003', number: 600, note: '' },
+            { order_id: 'IM000002', product_id: 'P012', warehouse_id: 'W003', number: 400, note: '' },
+            { order_id: 'SA000004', product_id: 'P009', warehouse_id: 'W002', number: 10, note: '' },
+            { order_id: 'SA000004', product_id: 'P014', warehouse_id: 'W002', number: 8, note: 'Gạch men cao cấp' },
+            { order_id: 'SA000005', product_id: 'P006', warehouse_id: 'W005', number: 50, note: '' },
+            { order_id: 'SA000005', product_id: 'P015', warehouse_id: 'W005', number: 30, note: '' },
+            { order_id: 'SA000005', product_id: 'P016', warehouse_id: 'W005', number: 20, note: '' },
+            { order_id: 'SA000006', product_id: 'P007', warehouse_id: 'W006', number: 20, note: '' },
+            { order_id: 'SA000006', product_id: 'P008', warehouse_id: 'W006', number: 15, note: '' },
+            { order_id: 'SA000006', product_id: 'P018', warehouse_id: 'W006', number: 12, note: '' },
+            { order_id: 'IM000003', product_id: 'P002', warehouse_id: 'W002', number: 5000, note: 'Nhập kho gạch' },
+            { order_id: 'IM000003', product_id: 'P013', warehouse_id: 'W002', number: 3000, note: '' },
+            { order_id: 'SA000007', product_id: 'P001', warehouse_id: 'W001', number: 80, note: '' },
+            { order_id: 'SA000007', product_id: 'P003', warehouse_id: 'W003', number: 400, note: '' },
+            { order_id: 'SA000007', product_id: 'P007', warehouse_id: 'W006', number: 15, note: '' }
         ];
 
         for (const od of orderDetails) {
             try {
                 await db.query(
-                    `INSERT INTO order_details(order_id, product_id, number, note)
-VALUES($1, $2, $3, $4) ON CONFLICT(order_id, product_id) DO NOTHING`,
-                    [od.order_id, od.product_id, od.number, od.note]
+                    `INSERT INTO order_details(order_id, product_id, warehouse_id, number, note)
+VALUES($1, $2, $3, $4, $5) ON CONFLICT(order_id, product_id, warehouse_id) DO NOTHING`,
+                    [od.order_id, od.product_id, od.warehouse_id, od.number, od.note]
                 );
-                console.log(`✅ Đã seed order detail: ${od.order_id} - ${od.product_id} `);
+                console.log(`✅ Đã seed order detail: ${od.order_id} - ${od.product_id} - ${od.warehouse_id} `);
             } catch (error) {
                 if (!error.message.includes('duplicate')) {
                     console.error(`Loi seed order detail: `, error.message);
@@ -959,15 +996,15 @@ VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT(pid, uid) DO NOTHING`,
 
         // 11. Seed Order Warehouses
         const orderWarehouses = [
-            { wid: 'W001', oid: 'ORD001', note: 'Xuất từ kho xi măng' },
-            { wid: 'W002', oid: 'ORD001', note: 'Xuất từ kho gạch' },
-            { wid: 'W003', oid: 'ORD003', note: 'Xuất từ kho sắt thép' },
-            { wid: 'W004', oid: 'ORD004', note: 'Xuất từ kho gỗ' },
-            { wid: 'W005', oid: 'ORD007', note: 'Xuất từ kho ống nước' },
-            { wid: 'W006', oid: 'ORD008', note: 'Xuất từ kho cát đá' },
-            { wid: 'W001', oid: 'ORD002', note: 'Nhập vào kho xi măng' },
-            { wid: 'W003', oid: 'ORD005', note: 'Nhập vào kho sắt thép' },
-            { wid: 'W002', oid: 'ORD009', note: 'Nhập vào kho gạch' }
+            { wid: 'W001', oid: 'SA000001', note: 'Xuất từ kho xi măng' },
+            { wid: 'W002', oid: 'SA000001', note: 'Xuất từ kho gạch' },
+            { wid: 'W003', oid: 'SA000002', note: 'Xuất từ kho sắt thép' },
+            { wid: 'W004', oid: 'SA000003', note: 'Xuất từ kho gỗ' },
+            { wid: 'W005', oid: 'SA000005', note: 'Xuất từ kho ống nước' },
+            { wid: 'W006', oid: 'SA000006', note: 'Xuất từ kho cát đá' },
+            { wid: 'W001', oid: 'IM000001', note: 'Nhập vào kho xi măng' },
+            { wid: 'W003', oid: 'IM000002', note: 'Nhập vào kho sắt thép' },
+            { wid: 'W002', oid: 'IM000003', note: 'Nhập vào kho gạch' }
         ];
 
         for (const ow of orderWarehouses) {
@@ -1003,6 +1040,14 @@ VALUES($1, $2, $3) ON CONFLICT(wid, oid) DO NOTHING`,
         console.error('Loi khi seed data:', error.message);
         throw error;
     }
+}
+
+async function cleanAllData() {
+    // Clean database = Drop tất cả tables, để lại database trống
+    // Sau đó có thể init lại để tạo lại cấu trúc tables
+    console.log('🧹 Đang clean database (xóa tất cả tables)...\n');
+    await dropAllTables();
+    console.log('✅ Database đã được clean hoàn toàn. Sẵn sàng để init lại.\n');
 }
 
 async function dropAllTables() {
@@ -1077,8 +1122,28 @@ async function initDatabase() {
 
 // Run if called directly
 if (require.main === module) {
-    initDatabase();
+    // Check command line arguments
+    const args = process.argv.slice(2);
+    const command = args[0];
+
+    if (command === 'clean' || command === '--clean') {
+        // Clean data only
+        (async () => {
+            try {
+                await db.query('SELECT 1');
+                console.log('✅ Kết nối database thành công\n');
+                await cleanAllData();
+                process.exit(0);
+            } catch (error) {
+                console.error('❌ Lỗi:', error.message);
+                process.exit(1);
+            }
+        })();
+    } else {
+        // Normal init
+        initDatabase();
+    }
 }
 
-module.exports = { initDatabase, createTables, seedData };
+module.exports = { initDatabase, createTables, seedData, cleanAllData, dropAllTables };
 

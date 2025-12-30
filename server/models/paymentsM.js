@@ -28,22 +28,14 @@ const PaymentsM = {
         return result.rows;
     },
 
-    findByBillId: async (billId) => {
-        const result = await queryWithFallback(
-            'SELECT * FROM payments WHERE bill_id = $1 ORDER BY created_at DESC',
-            'SELECT * FROM "Payments" WHERE "BillId" = $1 ORDER BY "CreatedAt" DESC',
-            [billId]
-        );
-        return result.rows;
-    },
+    // findByBillId đã được xóa - bills không còn được sử dụng
 
     create: async (payment) => {
         const result = await db.query(
-            `INSERT INTO payments (id, bill_id, order_id, amount, payment_method, payment_status, transaction_id, payment_date, notes, actor) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+            `INSERT INTO payments (id, order_id, amount, payment_method, payment_status, transaction_id, payment_date, notes, actor) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
             [
                 payment.id,
-                payment.billId || payment.bill_id || null,
                 payment.orderId || payment.order_id,
                 payment.amount,
                 payment.paymentMethod || payment.payment_method,

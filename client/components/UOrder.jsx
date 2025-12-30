@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, productDetailAPI } from '../services/api';
+import { orderAPI, productAPI, orderDetailAPI, warehouseAPI, productDetailAPI, paymentAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useAuth } from '../src/contexts/useAuth';
 import { useToast } from '../src/contexts/ToastContext';
@@ -8,7 +8,7 @@ import { Icons } from '../src/utils/icons';
 import Modal from '../src/components/Modal';
 
 // Reuse ProductSelectDropdown from COrder
-const ProductSelectDropdown = ({ value, products, onSelect, placeholder }) => {
+const ProductSelectDropdown = ({ value, products, onSelect, placeholder, disabled = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const dropdownRef = useRef(null);
@@ -215,14 +215,16 @@ const ProductSelectDropdown = ({ value, products, onSelect, placeholder }) => {
         <>
             <div ref={triggerRef} style={{ position: 'relative', width: '100%' }}>
                 <div
-                    onClick={() => setIsOpen(!isOpen)}
+                    onClick={() => !disabled && setIsOpen(!isOpen)}
+                    disabled={disabled}
                     style={{
                         padding: '10px 12px',
                         border: '1px solid #cbd5e1',
                         borderRadius: '6px',
                         fontSize: '14px',
-                        cursor: 'pointer',
-                        backgroundColor: 'white',
+                        cursor: disabled ? 'not-allowed' : 'pointer',
+                        backgroundColor: disabled ? '#f1f5f9' : 'white',
+                        color: disabled ? '#64748b' : '#334155',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
@@ -272,6 +274,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
     const [loading, setLoading] = useState(false);
     const [loadingOrder, setLoadingOrder] = useState(false);
     const [productDetailsCache, setProductDetailsCache] = useState({}); // Cache product details for filtering
+    const [isFullyPaid, setIsFullyPaid] = useState(false); // Check if sale order is fully paid
 
     // Load order data and products when component mounts
     useEffect(() => {
@@ -279,6 +282,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             loadOrderData();
             fetchProducts();
             fetchWarehouses();
+            checkPaymentStatus();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderId]);
@@ -288,6 +292,27 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
         updateFilteredLists();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedItems, allProducts, allWarehouses, productDetailsCache, formData.type]);
+
+    const checkPaymentStatus = async () => {
+        try {
+            const orderResponse = await orderAPI.getOrderById(orderId);
+            if (orderResponse.success) {
+                const order = orderResponse.data;
+                const orderType = (order.type || '').toLowerCase();
+                // Only check payment status for sale orders
+                if (orderType === 'sale' || orderType === 'sell') {
+                    const paymentResponse = await paymentAPI.getOrderPaymentSummary(orderId);
+                    if (paymentResponse.success && paymentResponse.data) {
+                        setIsFullyPaid(paymentResponse.data.isFullyPaid || false);
+                    }
+                }
+            }
+        } catch (err) {
+            // Ignore errors, default to not fully paid
+            console.warn('Error checking payment status:', err);
+            setIsFullyPaid(false);
+        }
+    };
 
     const loadOrderData = async () => {
         try {
@@ -330,7 +355,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                 const productsList = response.data || [];
                 setAllProducts(productsList);
                 setProducts(productsList);
-                
+
                 // Pre-fetch product details for all products to enable filtering
                 await fetchProductDetailsForProducts(productsList);
             } else {
@@ -391,7 +416,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
     // Update filtered products and warehouses based on selections
     const updateFilteredLists = () => {
         const orderType = (formData.type || '').toLowerCase();
-        
+
         // If Sale, don't filter by warehouse (warehouse field will be hidden)
         if (orderType === 'sale') {
             setProducts(allProducts);
@@ -408,11 +433,11 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             .filter(Boolean);
 
         // Check if we have any items with products but no warehouse (products selected first)
-        const hasProductsWithoutWarehouse = selectedItems.some(item => 
+        const hasProductsWithoutWarehouse = selectedItems.some(item =>
             item.productId && !item.warehouseId
         );
         // Check if we have any items with warehouse but no product (warehouse selected first)
-        const hasWarehouseWithoutProduct = selectedItems.some(item => 
+        const hasWarehouseWithoutProduct = selectedItems.some(item =>
             item.warehouseId && !item.productId
         );
 
@@ -428,7 +453,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                     }
                 });
             });
-            const filteredWarehouses = allWarehouses.filter(w => 
+            const filteredWarehouses = allWarehouses.filter(w =>
                 availableWarehouseIds.has(w.id || w.Id)
             );
             setWarehouses(filteredWarehouses.length > 0 ? filteredWarehouses : allWarehouses);
@@ -450,7 +475,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                     }
                 });
             });
-            const filteredProducts = allProducts.filter(p => 
+            const filteredProducts = allProducts.filter(p =>
                 availableProductIds.has(p.id || p.Id)
             );
             setProducts(filteredProducts.length > 0 ? filteredProducts : allProducts);
@@ -501,6 +526,12 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        // Prevent editing if fully paid
+        if (isFullyPaid) {
+            showError('Không thể chỉnh sửa đơn hàng đã thanh toán. Chỉ có thể xem chi tiết.');
+            return;
+        }
+
         // Validation
         if (selectedItems.length === 0) {
             showError('Vui lòng chọn ít nhất một sản phẩm');
@@ -517,7 +548,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
             return basicInvalid || !item.warehouseId;
         });
         if (hasInvalidItems) {
-            const errorMsg = orderType === 'sale' 
+            const errorMsg = orderType === 'sale'
                 ? 'Vui lòng chọn sản phẩm và nhập số lượng hợp lệ cho tất cả các mục'
                 : 'Vui lòng chọn sản phẩm, kho hàng và nhập số lượng hợp lệ cho tất cả các mục';
             showError(errorMsg);
@@ -583,7 +614,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                 const warehouseId = item.warehouseId || (allWarehouses.length > 0 ? allWarehouses[0].id || allWarehouses[0].Id : '');
                 const existingDetail = currentDetails.find(
                     od => (od.product_id || od.pid || od.productId) === item.productId &&
-                          (od.warehouse_id || od.wid || od.warehouseId) === warehouseId
+                        (od.warehouse_id || od.wid || od.warehouseId) === warehouseId
                 );
 
                 if (existingDetail) {
@@ -628,7 +659,7 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
         <Modal
             isOpen={true}
             onClose={onClose}
-            title="Chỉnh sửa đơn hàng"
+            title={isFullyPaid ? "Chi tiết đơn hàng (Đã thanh toán)" : "Chỉnh sửa đơn hàng"}
             size="large"
         >
             {loadingOrder ? (
@@ -636,144 +667,36 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                     Đang tải dữ liệu...
                 </div>
             ) : (
-                <form onSubmit={handleSubmit}>
-                    {/* Basic Order Info */}
-                    <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-                        gap: '12px',
-                        marginBottom: '16px'
-                    }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                ID
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.id}
-                                disabled
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    backgroundColor: '#f1f5f9',
-                                    color: '#64748b',
-                                    cursor: 'not-allowed',
-                                    fontWeight: '600'
-                                }}
-                            />
+                <>
+                    {isFullyPaid && (
+                        <div style={{
+                            padding: '12px 16px',
+                            backgroundColor: '#fef3c7',
+                            border: '1px solid #fbbf24',
+                            borderRadius: '8px',
+                            marginBottom: '16px',
+                            color: '#92400e',
+                            fontSize: '14px',
+                            fontWeight: '500'
+                        }}>
+                            ⚠️ Đơn hàng này đã được thanh toán đầy đủ. Bạn chỉ có thể xem chi tiết, không thể chỉnh sửa hoặc xóa.
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Loại <span style={{ color: '#ef4444' }}>*</span>
-                            </label>
-                            <select
-                                name="type"
-                                value={formData.type}
-                                onChange={handleChange}
-                                required
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    transition: 'all 0.2s',
-                                    cursor: 'pointer'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                            >
-                                <option value="">Chọn loại</option>
-                                <option value="sale">Sale</option>
-                                <option value="export">Export</option>
-                                <option value="import">Import</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Ngày <span style={{ color: '#ef4444' }}>*</span>
-                            </label>
-                            <input
-                                type="date"
-                                name="date"
-                                value={formData.date}
-                                onChange={handleChange}
-                                required
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                            />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                Tên khách hàng
-                            </label>
-                            <input
-                                type="text"
-                                name="customerName"
-                                value={formData.customerName}
-                                onChange={handleChange}
-                                placeholder="Nhập tên khách hàng"
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    transition: 'all 0.2s'
-                                }}
-                                onFocus={(e) => e.target.style.borderColor = '#475569'}
-                                onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
-                            />
-                        </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                User ID
-                            </label>
-                            <input
-                                type="text"
-                                value={user?.id || user?.Id || 'Auto-filled from logged in account'}
-                                disabled
-                                style={{
-                                    width: '100%',
-                                    padding: '12px 16px',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '8px',
-                                    fontSize: '14px',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    backgroundColor: '#f1f5f9',
-                                    color: '#64748b',
-                                    cursor: 'not-allowed'
-                                }}
-                            />
-                        </div>
-                        {((formData.type || '').toLowerCase() !== 'import') && (
+                    )}
+                    <form onSubmit={handleSubmit}>
+                        {/* Basic Order Info */}
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                            gap: '12px',
+                            marginBottom: '16px'
+                        }}>
                             <div>
                                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
-                                    Tổng tiền
+                                    ID
                                 </label>
                                 <input
                                     type="text"
-                                    value={new Intl.NumberFormat('vi-VN').format(total) + ' đ'}
+                                    value={formData.id}
                                     disabled
                                     style={{
                                         width: '100%',
@@ -790,234 +713,372 @@ const UOrder = ({ orderId, onOrderUpdated, onClose }) => {
                                     }}
                                 />
                             </div>
-                        )}
-                    </div>
-
-                    {/* Products Selection */}
-                    <div style={{ marginBottom: '16px' }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: '12px'
-                        }}>
-                            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#334155' }}>
-                                Sản phẩm ({selectedItems.length})
-                            </h3>
-                            <button
-                                type="button"
-                                onClick={handleAddProduct}
-                                style={{
-                                    padding: '8px 16px',
-                                    background: '#f1f5f9',
-                                    color: '#475569',
-                                    border: '1px solid #cbd5e1',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    fontWeight: '500',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px'
-                                }}
-                            >
-                                <Icons.Add size={16} /> Thêm sản phẩm
-                            </button>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Loại <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <select
+                                    name="type"
+                                    value={formData.type}
+                                    onChange={handleChange}
+                                    required
+                                    disabled={isFullyPaid}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        transition: 'all 0.2s',
+                                        cursor: isFullyPaid ? 'not-allowed' : 'pointer',
+                                        backgroundColor: isFullyPaid ? '#f1f5f9' : 'white',
+                                        color: isFullyPaid ? '#64748b' : '#334155'
+                                    }}
+                                    onFocus={(e) => !isFullyPaid && (e.target.style.borderColor = '#475569')}
+                                    onBlur={(e) => !isFullyPaid && (e.target.style.borderColor = '#cbd5e1')}
+                                >
+                                    <option value="">Chọn loại</option>
+                                    <option value="sale">Sale</option>
+                                    <option value="export">Export</option>
+                                    <option value="import">Import</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Ngày <span style={{ color: '#ef4444' }}>*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    name="date"
+                                    value={formData.date}
+                                    onChange={handleChange}
+                                    required
+                                    disabled={isFullyPaid}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        transition: 'all 0.2s',
+                                        backgroundColor: isFullyPaid ? '#f1f5f9' : 'white',
+                                        color: isFullyPaid ? '#64748b' : '#334155',
+                                        cursor: isFullyPaid ? 'not-allowed' : 'text'
+                                    }}
+                                    onFocus={(e) => !isFullyPaid && (e.target.style.borderColor = '#475569')}
+                                    onBlur={(e) => !isFullyPaid && (e.target.style.borderColor = '#cbd5e1')}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    Tên khách hàng
+                                </label>
+                                <input
+                                    type="text"
+                                    name="customerName"
+                                    value={formData.customerName}
+                                    onChange={handleChange}
+                                    placeholder="Nhập tên khách hàng"
+                                    disabled={isFullyPaid}
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        transition: 'all 0.2s',
+                                        backgroundColor: isFullyPaid ? '#f1f5f9' : 'white',
+                                        color: isFullyPaid ? '#64748b' : '#334155',
+                                        cursor: isFullyPaid ? 'not-allowed' : 'text'
+                                    }}
+                                    onFocus={(e) => !isFullyPaid && (e.target.style.borderColor = '#475569')}
+                                    onBlur={(e) => !isFullyPaid && (e.target.style.borderColor = '#cbd5e1')}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                    User ID
+                                </label>
+                                <input
+                                    type="text"
+                                    value={user?.id || user?.Id || 'Auto-filled from logged in account'}
+                                    disabled
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px 16px',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '8px',
+                                        fontSize: '14px',
+                                        outline: 'none',
+                                        boxSizing: 'border-box',
+                                        backgroundColor: '#f1f5f9',
+                                        color: '#64748b',
+                                        cursor: 'not-allowed'
+                                    }}
+                                />
+                            </div>
+                            {((formData.type || '').toLowerCase() !== 'import') && (
+                                <div>
+                                    <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', color: '#334155', fontSize: '14px' }}>
+                                        Tổng tiền
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={new Intl.NumberFormat('vi-VN').format(total) + ' đ'}
+                                        disabled
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px 16px',
+                                            border: '1px solid #cbd5e1',
+                                            borderRadius: '8px',
+                                            fontSize: '14px',
+                                            outline: 'none',
+                                            boxSizing: 'border-box',
+                                            backgroundColor: '#f1f5f9',
+                                            color: '#64748b',
+                                            cursor: 'not-allowed',
+                                            fontWeight: '600'
+                                        }}
+                                    />
+                                </div>
+                            )}
                         </div>
 
-                        {selectedItems.length === 0 ? (
+                        {/* Products Selection */}
+                        <div style={{ marginBottom: '16px' }}>
                             <div style={{
-                                padding: '40px',
-                                textAlign: 'center',
-                                backgroundColor: '#f8f9fa',
-                                borderRadius: '8px',
-                                color: '#999'
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                marginBottom: '12px'
                             }}>
-                                Chưa có sản phẩm nào. Click "Thêm sản phẩm" để bắt đầu.
+                                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#334155' }}>
+                                    Sản phẩm ({selectedItems.length})
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={handleAddProduct}
+                                    disabled={isFullyPaid}
+                                    style={{
+                                        padding: '8px 16px',
+                                        background: isFullyPaid ? '#f1f5f9' : '#f1f5f9',
+                                        color: isFullyPaid ? '#94a3b8' : '#475569',
+                                        border: '1px solid #cbd5e1',
+                                        borderRadius: '6px',
+                                        cursor: isFullyPaid ? 'not-allowed' : 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: '500',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '6px'
+                                    }}
+                                >
+                                    <Icons.Add size={16} /> Thêm sản phẩm
+                                </button>
                             </div>
-                        ) : (
-                            <div style={{
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                                overflow: 'hidden',
-                                maxHeight: '200px',
-                                overflowY: 'auto',
-                                overflowX: 'hidden',
-                                scrollbarWidth: 'thin',
-                                scrollbarColor: '#cbd5e1 #f1f5f9'
-                            }}>
-                                {selectedItems.map((item, index) => {
-                                    const product = products.find(p => (p.id || p.Id) === item.productId);
-                                    const itemTotal = product ? ((product.price || product.Price || 0) * (item.quantity || 0)) : 0;
 
-                                    return (
-                                        <div
-                                            key={index}
-                                            style={{
-                                                padding: '8px 10px',
-                                                borderBottom: index < selectedItems.length - 1 ? '1px solid #e5e7eb' : 'none',
-                                                display: 'grid',
-                                                gridTemplateColumns: (formData.type || '').toLowerCase() === 'sale' 
-                                                    ? '2fr 1fr 1fr 1fr auto' 
-                                                    : '2fr 1fr 1fr 1fr 1fr auto',
-                                                gap: '6px',
-                                                alignItems: 'center',
-                                                minHeight: '50px'
-                                            }}
-                                        >
-                                            <div style={{ minWidth: 0 }}>
-                                                <ProductSelectDropdown
-                                                    value={item.productId}
-                                                    products={products || []}
-                                                    onSelect={(productId) => handleProductChange(index, 'productId', productId)}
-                                                    placeholder={loadingProducts ? "Đang tải..." : products.length === 0 ? "Không có sản phẩm" : "Chọn sản phẩm"}
-                                                />
-                                            </div>
-                                            {((formData.type || '').toLowerCase() !== 'sale') && (
-                                                <select
-                                                    value={item.warehouseId || ''}
-                                                    onChange={(e) => handleProductChange(index, 'warehouseId', e.target.value)}
+                            {selectedItems.length === 0 ? (
+                                <div style={{
+                                    padding: '40px',
+                                    textAlign: 'center',
+                                    backgroundColor: '#f8f9fa',
+                                    borderRadius: '8px',
+                                    color: '#999'
+                                }}>
+                                    Chưa có sản phẩm nào. Click "Thêm sản phẩm" để bắt đầu.
+                                </div>
+                            ) : (
+                                <div style={{
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '8px',
+                                    overflow: 'hidden',
+                                    maxHeight: '200px',
+                                    overflowY: 'auto',
+                                    overflowX: 'hidden',
+                                    scrollbarWidth: 'thin',
+                                    scrollbarColor: '#cbd5e1 #f1f5f9'
+                                }}>
+                                    {selectedItems.map((item, index) => {
+                                        const product = products.find(p => (p.id || p.Id) === item.productId);
+                                        const itemTotal = product ? ((product.price || product.Price || 0) * (item.quantity || 0)) : 0;
+
+                                        return (
+                                            <div
+                                                key={index}
+                                                style={{
+                                                    padding: '8px 10px',
+                                                    borderBottom: index < selectedItems.length - 1 ? '1px solid #e5e7eb' : 'none',
+                                                    display: 'grid',
+                                                    gridTemplateColumns: (formData.type || '').toLowerCase() === 'sale'
+                                                        ? '2fr 1fr 1fr 1fr auto'
+                                                        : '2fr 1fr 1fr 1fr 1fr auto',
+                                                    gap: '6px',
+                                                    alignItems: 'center',
+                                                    minHeight: '50px'
+                                                }}
+                                            >
+                                                <div style={{ minWidth: 0 }}>
+                                                    <ProductSelectDropdown
+                                                        value={item.productId}
+                                                        products={products || []}
+                                                        onSelect={(productId) => handleProductChange(index, 'productId', productId)}
+                                                        placeholder={loadingProducts ? "Đang tải..." : products.length === 0 ? "Không có sản phẩm" : "Chọn sản phẩm"}
+                                                        disabled={isFullyPaid}
+                                                    />
+                                                </div>
+                                                {((formData.type || '').toLowerCase() !== 'sale') && (
+                                                    <select
+                                                        value={item.warehouseId || ''}
+                                                        onChange={(e) => handleProductChange(index, 'warehouseId', e.target.value)}
+                                                        required
+                                                        disabled={loadingWarehouses}
+                                                        style={{
+                                                            padding: '8px 10px',
+                                                            border: '1px solid #cbd5e1',
+                                                            borderRadius: '6px',
+                                                            fontSize: '13px',
+                                                            outline: 'none',
+                                                            cursor: 'pointer',
+                                                            backgroundColor: loadingWarehouses ? '#f1f5f9' : 'white'
+                                                        }}
+                                                    >
+                                                        <option value="">{loadingWarehouses ? 'Đang tải...' : 'Kho hàng'}</option>
+                                                        {warehouses.map(warehouse => (
+                                                            <option key={warehouse.id || warehouse.Id} value={warehouse.id || warehouse.Id}>
+                                                                {warehouse.name || warehouse.Name || warehouse.id || warehouse.Id}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                )}
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={item.quantity}
+                                                    onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
+                                                    placeholder="SL"
                                                     required
-                                                    disabled={loadingWarehouses}
                                                     style={{
                                                         padding: '8px 10px',
                                                         border: '1px solid #cbd5e1',
                                                         borderRadius: '6px',
                                                         fontSize: '13px',
-                                                        outline: 'none',
-                                                        cursor: 'pointer',
-                                                        backgroundColor: loadingWarehouses ? '#f1f5f9' : 'white'
+                                                        outline: 'none'
+                                                    }}
+                                                />
+                                                <div style={{
+                                                    padding: '8px 6px',
+                                                    textAlign: 'right',
+                                                    fontWeight: '600',
+                                                    color: '#475569',
+                                                    fontSize: '13px'
+                                                }}>
+                                                    {new Intl.NumberFormat('vi-VN').format(itemTotal)} đ
+                                                </div>
+                                                <div style={{
+                                                    padding: '8px 6px',
+                                                    fontSize: '12px',
+                                                    color: '#64748b'
+                                                }}>
+                                                    {product ? (product.unit || product.Unit || '') : ''}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveProduct(index)}
+                                                    disabled={isFullyPaid}
+                                                    style={{
+                                                        padding: '6px',
+                                                        background: isFullyPaid ? '#f1f5f9' : '#fee2e2',
+                                                        color: isFullyPaid ? '#94a3b8' : '#dc2626',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        cursor: isFullyPaid ? 'not-allowed' : 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        minWidth: '32px',
+                                                        height: '32px'
                                                     }}
                                                 >
-                                                    <option value="">{loadingWarehouses ? 'Đang tải...' : 'Kho hàng'}</option>
-                                                    {warehouses.map(warehouse => (
-                                                        <option key={warehouse.id || warehouse.Id} value={warehouse.id || warehouse.Id}>
-                                                            {warehouse.name || warehouse.Name || warehouse.id || warehouse.Id}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            )}
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={item.quantity}
-                                                onChange={(e) => handleProductChange(index, 'quantity', e.target.value)}
-                                                placeholder="SL"
-                                                required
-                                                style={{
-                                                    padding: '8px 10px',
-                                                    border: '1px solid #cbd5e1',
-                                                    borderRadius: '6px',
-                                                    fontSize: '13px',
-                                                    outline: 'none'
-                                                }}
-                                            />
-                                            <div style={{
-                                                padding: '8px 6px',
-                                                textAlign: 'right',
-                                                fontWeight: '600',
-                                                color: '#475569',
-                                                fontSize: '13px'
-                                            }}>
-                                                {new Intl.NumberFormat('vi-VN').format(itemTotal)} đ
+                                                    <Icons.Delete size={14} />
+                                                </button>
                                             </div>
-                                            <div style={{
-                                                padding: '8px 6px',
-                                                fontSize: '12px',
-                                                color: '#64748b'
-                                            }}>
-                                                {product ? (product.unit || product.Unit || '') : ''}
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleRemoveProduct(index)}
-                                                style={{
-                                                    padding: '6px',
-                                                    background: '#fee2e2',
-                                                    color: '#dc2626',
-                                                    border: 'none',
-                                                    borderRadius: '6px',
-                                                    cursor: 'pointer',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    minWidth: '32px',
-                                                    height: '32px'
-                                                }}
-                                            >
-                                                <Icons.Delete size={14} />
-                                            </button>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-
-                    <div style={{
-                        display: 'flex',
-                        gap: '12px',
-                        justifyContent: 'flex-end',
-                        paddingTop: '12px',
-                        borderTop: '1px solid #e5e7eb',
-                        marginTop: '12px',
-                        position: 'sticky',
-                        bottom: 0,
-                        backgroundColor: 'white',
-                        zIndex: 10,
-                        paddingBottom: '8px'
-                    }}>
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            style={{
-                                padding: '12px 24px',
-                                background: '#f1f5f9',
-                                color: '#475569',
-                                border: 'none',
-                                borderRadius: '8px',
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                transition: 'all 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.target.style.background = '#e2e8f0'}
-                            onMouseLeave={(e) => e.target.style.background = '#f1f5f9'}
-                        >
-                            Hủy
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading || selectedItems.length === 0}
-                            style={{
-                                padding: '12px 24px',
-                                background: loading || selectedItems.length === 0
-                                    ? '#94a3b8'
-                                    : 'linear-gradient(135deg, #475569 0%, #334155 100%)',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                cursor: loading || selectedItems.length === 0 ? 'not-allowed' : 'pointer',
-                                fontSize: '14px',
-                                fontWeight: '600',
-                                transition: 'all 0.2s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px'
-                            }}
-                        >
-                            {loading ? (
-                                <>
-                                    <Icons.Loading size={16} /> Đang cập nhật...
-                                </>
-                            ) : (
-                                <>
-                                    <Icons.Success size={16} /> Cập nhật đơn hàng
-                                </>
+                                        );
+                                    })}
+                                </div>
                             )}
-                        </button>
-                    </div>
-                </form>
+                        </div>
+
+                        <div style={{
+                            display: 'flex',
+                            gap: '12px',
+                            justifyContent: 'flex-end',
+                            paddingTop: '12px',
+                            borderTop: '1px solid #e5e7eb',
+                            marginTop: '12px',
+                            position: 'sticky',
+                            bottom: 0,
+                            backgroundColor: 'white',
+                            zIndex: 10,
+                            paddingBottom: '8px'
+                        }}>
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                style={{
+                                    padding: '12px 24px',
+                                    background: '#f1f5f9',
+                                    color: '#475569',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.target.style.background = '#e2e8f0'}
+                                onMouseLeave={(e) => e.target.style.background = '#f1f5f9'}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading || selectedItems.length === 0 || isFullyPaid}
+                                style={{
+                                    padding: '12px 24px',
+                                    background: loading || selectedItems.length === 0 || isFullyPaid
+                                        ? '#94a3b8'
+                                        : 'linear-gradient(135deg, #475569 0%, #334155 100%)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '8px',
+                                    cursor: loading || selectedItems.length === 0 || isFullyPaid ? 'not-allowed' : 'pointer',
+                                    fontSize: '14px',
+                                    fontWeight: '600',
+                                    transition: 'all 0.2s',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                }}
+                            >
+                                {loading ? (
+                                    <>
+                                        <Icons.Loading size={16} /> Đang cập nhật...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Icons.Success size={16} /> Cập nhật đơn hàng
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </form>
+                </>
             )}
         </Modal>
     );

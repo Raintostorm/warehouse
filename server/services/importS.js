@@ -68,15 +68,56 @@ const ImportS = {
                                 errors.push(`Row ${i + 2}: Missing required fields (ID, Loại)`);
                                 continue;
                             }
-                            await OrdersM.create({
-                                id: row['ID'],
-                                type: row['Loại'],
-                                date: row['Ngày'] || new Date().toISOString().split('T')[0],
-                                uId: row['Người dùng'] || null,
-                                customerName: row['Tên khách hàng'] || '',
-                                total: parseFloat(row['Tổng tiền']) || 0,
-                                actor: actor
-                            });
+                            const orderType = (row['Loại'] || '').toLowerCase();
+                            
+                            // Validate order type requirements
+                            if (orderType === 'sale' || orderType === 'sell') {
+                                if (!row['Tên khách hàng'] && !row['Customer Name']) {
+                                    errors.push(`Row ${i + 2}: Sale orders require customer name (Tên khách hàng)`);
+                                    continue;
+                                }
+                            } else if (orderType === 'import') {
+                                // For import orders, supplier_id is required
+                                // Can be provided in Excel as "Nhà cung cấp", "Supplier ID", or "Supplier_ID"
+                                const supplierId = row['Nhà cung cấp'] || row['Supplier ID'] || row['Supplier_ID'] || row['SupplierId'];
+                                if (!supplierId) {
+                                    errors.push(`Row ${i + 2}: Import orders require supplier_id (Nhà cung cấp/Supplier ID)`);
+                                    continue;
+                                }
+                                
+                                // Verify supplier exists
+                                try {
+                                    const supplier = await SuppliersM.findById(supplierId);
+                                    if (!supplier) {
+                                        errors.push(`Row ${i + 2}: Supplier ID "${supplierId}" not found`);
+                                        continue;
+                                    }
+                                } catch (err) {
+                                    errors.push(`Row ${i + 2}: Error validating supplier: ${err.message}`);
+                                    continue;
+                                }
+                                
+                                await OrdersM.create({
+                                    id: row['ID'],
+                                    type: row['Loại'],
+                                    date: row['Ngày'] || new Date().toISOString().split('T')[0],
+                                    uId: row['Người dùng'] || null,
+                                    supplierId: supplierId,
+                                    total: parseFloat(row['Tổng tiền']) || 0,
+                                    actor: actor
+                                });
+                            } else {
+                                // Other order types (export, etc.)
+                                await OrdersM.create({
+                                    id: row['ID'],
+                                    type: row['Loại'],
+                                    date: row['Ngày'] || new Date().toISOString().split('T')[0],
+                                    uId: row['Người dùng'] || null,
+                                    customerName: row['Tên khách hàng'] || '',
+                                    total: parseFloat(row['Tổng tiền']) || 0,
+                                    actor: actor
+                                });
+                            }
                             imported++;
                             break;
                         case 'warehouses':

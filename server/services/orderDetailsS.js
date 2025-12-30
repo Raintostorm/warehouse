@@ -6,6 +6,7 @@ const ProductsM = require('../models/productsM');
 const SupplierImportHistoryM = require('../models/supplierImportHistoryM');
 const StockValidationS = require('./stockValidationS');
 const logger = require('../utils/logger');
+const db = require('../db');
 
 const OrderDetailsS = {
     findAll: async () => {
@@ -116,15 +117,138 @@ const OrderDetailsS = {
             warehouseId
         );
         if (existing) {
-            // For sale orders, if we just found this warehouse and order detail exists,
-            // it means we're trying to create duplicate. Throw error with more info.
-            logger.warn('Order detail already exists', { 
+            // Merge quantity instead of throwing error
+            const existingQuantity = existing.number || 0;
+            const additionalQuantity = quantity;
+            const newQuantity = existingQuantity + additionalQuantity;
+            
+            logger.info('Order detail already exists, merging quantities', { 
                 orderId: orderDetailData.oid, 
                 productId: orderDetailData.pid, 
                 warehouseId,
-                existingDetail: existing
+                existingQuantity,
+                additionalQuantity,
+                newQuantity
             });
-            throw new Error(`Order detail already exists for order ${orderDetailData.oid}, product ${productId}, and warehouse ${warehouseId}. Use update instead.`);
+            
+            // For sale orders, validate stock with new total quantity
+            if (orderType === 'sale') {
+                const StockValidationS = require('./stockValidationS');
+                const stockValidation = await StockValidationS.validateStockInWarehouse(
+                    productId,
+                    warehouseId,
+                    newQuantity // Validate với tổng quantity mới
+                );
+
+                if (!stockValidation.isValid) {
+                    throw new Error(
+                        `Insufficient stock for merged quantity. Available: ${stockValidation.available}, Requested: ${newQuantity} (existing: ${existingQuantity} + new: ${additionalQuantity})`
+                    );
+                }
+            }
+            
+            // Update existing order detail with merged quantity
+            const updatedDetail = await OrderDetailsM.update(
+                orderDetailData.oid,
+                orderDetailData.pid,
+                warehouseId,
+                { number: newQuantity }
+            );
+            
+            // Update stock based on the additional quantity
+            try {
+                if (orderType === 'sale') {
+                    // Reduce stock by additional quantity
+                    const previousQuantity = await InventoryS.getCurrentStock(productId, warehouseId);
+                    const newStockQuantity = Math.max(0, previousQuantity - additionalQuantity);
+
+                    const existingDetail = await ProductDetailsM.findByProductAndWarehouse(productId, warehouseId);
+                    if (existingDetail) {
+                        await ProductDetailsM.update(productId, warehouseId, { number: newStockQuantity });
+                    } else {
+                        logger.warn('Product detail not found after stock validation', { productId, warehouseId });
+                        await ProductDetailsM.create({
+                            pid: productId,
+                            wid: warehouseId,
+                            number: newStockQuantity,
+                            note: 'Created from sale order merge'
+                        });
+                    }
+
+                    // Note: recordStockChange and checkLowStock removed - tables don't exist
+                } else if (orderType === 'import') {
+                    // Increase stock by additional quantity
+                    const previousQuantity = await InventoryS.getCurrentStock(productId, warehouseId);
+                    const newStockQuantity = previousQuantity + additionalQuantity;
+
+                    const existingDetail = await ProductDetailsM.findByProductAndWarehouse(productId, warehouseId);
+                    if (existingDetail) {
+                        await ProductDetailsM.update(productId, warehouseId, { number: newStockQuantity });
+                    } else {
+                        await ProductDetailsM.create({
+                            pid: productId,
+                            wid: warehouseId,
+                            number: newStockQuantity,
+                            note: 'Created from import order merge'
+                        });
+                    }
+
+                    // Note: recordStockChange and checkLowStock removed - tables don't exist
+                }
+            } catch (stockError) {
+                // Check if error is from missing tables (expected behavior)
+                const isTableNotExist = stockError.code === '42P01' || 
+                                       stockError.message?.includes('does not exist') || 
+                                       stockError.message?.includes('relation') ||
+                                       stockError.message?.includes('stock_history') ||
+                                       stockError.message?.includes('low_stock_alerts');
+                
+                if (!isTableNotExist) {
+                    // Real error - log it
+                    logger.error('Error updating stock after order detail merge', {
+                        error: stockError.message,
+                        orderDetailData,
+                        orderType,
+                        additionalQuantity
+                    });
+                    // Note: Order detail đã được update, nhưng stock chưa update
+                    // Có thể cần rollback hoặc manual fix
+                    throw new Error(`Failed to update stock after merging order detail: ${stockError.message}`);
+                }
+                // If table doesn't exist, silently continue - it's expected behavior
+            }
+
+            // Record in supplier import history - TÁCH RA NGOÀI try-catch của stock update
+            // Để đảm bảo nó luôn được tạo dù stock history fail
+            if (orderType === 'import') {
+                const supplierId = order.supplier_id || order.supplierId;
+                if (supplierId) {
+                    try {
+                        await SupplierImportHistoryM.create({
+                            supplierId,
+                            productId,
+                            warehouseId,
+                            orderId: orderDetailData.oid,
+                            quantity: additionalQuantity,
+                            importDate: order.date || new Date().toISOString().split('T')[0],
+                            notes: `Merged quantity: ${additionalQuantity}`,
+                            actor: orderDetailData.actor || order.actor || null
+                        });
+                    } catch (supplierHistoryError) {
+                        // Log nhưng không throw - để order detail vẫn được tạo thành công
+                        logger.error('Failed to create supplier import history', {
+                            error: supplierHistoryError.message,
+                            orderId: orderDetailData.oid,
+                            supplierId,
+                            productId,
+                            warehouseId,
+                            quantity: additionalQuantity
+                        });
+                    }
+                }
+            }
+            
+            return updatedDetail;
         }
 
         // For sale orders: validate stock before creating detail
@@ -143,85 +267,71 @@ const OrderDetailsS = {
             }
         }
 
-        // Create order detail
-        const orderDetail = await OrderDetailsM.create({
-            ...orderDetailData,
-            wid: warehouseId,
-            warehouse_id: warehouseId,
-            warehouseId: warehouseId
-        });
+        // Wrap order detail creation and stock update in transaction
+        const orderDetail = await db.withTransaction(async (client) => {
+            // Create order detail using transaction client
+            const orderDetailResult = await client.query(
+                'INSERT INTO order_details (order_id, product_id, warehouse_id, number, note, actor) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+                [
+                    orderDetailData.oid || orderDetailData.order_id,
+                    productId,
+                    warehouseId,
+                    quantity,
+                    orderDetailData.note || null,
+                    orderDetailData.actor || null
+                ]
+            );
+            const createdOrderDetail = orderDetailResult.rows[0];
 
-        // Handle stock changes based on order type
-        try {
+            // Handle stock changes based on order type
             if (orderType === 'sale') {
                 // Reduce stock for sale orders
                 const previousQuantity = await InventoryS.getCurrentStock(productId, warehouseId);
                 const newQuantity = Math.max(0, previousQuantity - quantity);
 
-                // Update product_details
+                // Update product_details using transaction client
                 const existingDetail = await ProductDetailsM.findByProductAndWarehouse(productId, warehouseId);
                 if (existingDetail) {
-                    await ProductDetailsM.update(productId, warehouseId, { number: newQuantity });
+                    await client.query(
+                        'UPDATE product_details SET number = $1, updated_at = CURRENT_DATE WHERE pid = $2 AND wid = $3',
+                        [newQuantity, productId, warehouseId]
+                    );
                 } else {
-                    // Should not happen if validation passed, but handle it
                     logger.warn('Product detail not found after stock validation', { productId, warehouseId });
-                    await ProductDetailsM.create({
-                        pid: productId,
-                        wid: warehouseId,
-                        number: newQuantity,
-                        note: 'Created from sale order'
-                    });
+                    await client.query(
+                        'INSERT INTO product_details (pid, wid, updated_at, number, note) VALUES ($1, $2, CURRENT_DATE, $3, $4)',
+                        [productId, warehouseId, newQuantity, 'Created from sale order']
+                    );
                 }
-
-                // Record in stock history
-                await InventoryS.recordStockChange({
-                    productId,
-                    warehouseId,
-                    transactionType: 'OUT',
-                    quantity: -quantity,
-                    previousQuantity,
-                    newQuantity,
-                    referenceId: orderDetailData.oid,
-                    referenceType: 'order',
-                    notes: `Sale order ${orderDetailData.oid} - ${orderDetail.note || ''}`
-                });
-
-                // Check for low stock alerts
-                await InventoryS.checkLowStock(productId, warehouseId);
             } else if (orderType === 'import') {
                 // Increase stock for import orders
                 const previousQuantity = await InventoryS.getCurrentStock(productId, warehouseId);
                 const newQuantity = previousQuantity + quantity;
 
-                // Update product_details
+                // Update product_details using transaction client
                 const existingDetail = await ProductDetailsM.findByProductAndWarehouse(productId, warehouseId);
                 if (existingDetail) {
-                    await ProductDetailsM.update(productId, warehouseId, { number: newQuantity });
+                    await client.query(
+                        'UPDATE product_details SET number = $1, updated_at = CURRENT_DATE WHERE pid = $2 AND wid = $3',
+                        [newQuantity, productId, warehouseId]
+                    );
                 } else {
-                    await ProductDetailsM.create({
-                        pid: productId,
-                        wid: warehouseId,
-                        number: newQuantity,
-                        note: 'Created from import order'
-                    });
+                    await client.query(
+                        'INSERT INTO product_details (pid, wid, updated_at, number, note) VALUES ($1, $2, CURRENT_DATE, $3, $4)',
+                        [productId, warehouseId, newQuantity, 'Created from import order']
+                    );
                 }
+            }
 
-                // Record in stock history
-                await InventoryS.recordStockChange({
-                    productId,
-                    warehouseId,
-                    transactionType: 'IN',
-                    quantity: quantity,
-                    previousQuantity,
-                    newQuantity,
-                    referenceId: orderDetailData.oid,
-                    referenceType: 'order',
-                    notes: `Import order ${orderDetailData.oid} - ${orderDetail.note || ''}`
-                });
+            return createdOrderDetail;
+        });
 
-                // Record in supplier import history
-                const supplierId = order.supplier_id || order.supplierId;
-                if (supplierId) {
+        // Record in supplier import history - TÁCH RA NGOÀI try-catch của stock update
+        // Để đảm bảo nó luôn được tạo dù stock history fail
+        if (orderType === 'import') {
+            const supplierId = order.supplier_id || order.supplierId;
+            if (supplierId) {
+                try {
                     await SupplierImportHistoryM.create({
                         supplierId,
                         productId,
@@ -232,21 +342,18 @@ const OrderDetailsS = {
                         notes: orderDetail.note || null,
                         actor: orderDetail.actor || order.actor || null
                     });
+                } catch (supplierHistoryError) {
+                    // Log nhưng không throw - để order detail vẫn được tạo thành công
+                    logger.error('Failed to create supplier import history', {
+                        error: supplierHistoryError.message,
+                        orderId: orderDetailData.oid,
+                        supplierId,
+                        productId,
+                        warehouseId,
+                        quantity
+                    });
                 }
-
-                // Check for low stock alerts
-                await InventoryS.checkLowStock(productId, warehouseId);
             }
-        } catch (stockError) {
-            // Log error but don't fail the order detail creation
-            // The order detail is already created, so we need to handle this carefully
-            logger.error('Error updating stock after order detail creation', {
-                error: stockError.message,
-                orderDetailData,
-                orderType
-            });
-            // Note: In production, you might want to rollback the order detail creation
-            // For now, we'll log and continue
         }
 
         return orderDetail;

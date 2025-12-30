@@ -3,11 +3,13 @@ import { productAPI, productDetailAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
+import { BUTTON_COLORS } from '../src/utils/buttonColors';
 import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
 import FileManager from './FileManager';
 import Modal from '../src/components/Modal';
+import ProductView from './ProductView';
 
 const ProductL = () => {
     const { hasRole } = useRole();
@@ -22,6 +24,7 @@ const ProductL = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
     const [fileManagerModal, setFileManagerModal] = useState({ isOpen: false, productId: null });
+    const [viewingProductId, setViewingProductId] = useState(null);
 
     useEffect(() => {
         fetchProducts();
@@ -326,10 +329,30 @@ const ProductL = () => {
                                         <td style={{ padding: '14px 16px' }}>
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                                 <button
+                                                    onClick={() => setViewingProductId(product.id)}
+                                                    style={{
+                                                        padding: '6px 12px',
+                                                        background: BUTTON_COLORS.view,
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        borderRadius: '6px',
+                                                        cursor: 'pointer',
+                                                        fontSize: '12px',
+                                                        fontWeight: '500',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
+                                                    }}
+                                                    title="View Product Details"
+                                                >
+                                                    <Icons.Eye size={14} />
+                                                    View
+                                                </button>
+                                                <button
                                                     onClick={() => setFileManagerModal({ isOpen: true, productId: product.id })}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                                        background: BUTTON_COLORS.images,
                                                         color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
@@ -349,16 +372,19 @@ const ProductL = () => {
                                                     onClick={() => handleDelete(product.id)}
                                                     style={{
                                                         padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
+                                                        background: BUTTON_COLORS.delete,
                                                         color: 'white',
                                                         border: 'none',
                                                         borderRadius: '6px',
                                                         cursor: 'pointer',
                                                         fontSize: '13px',
-                                                        fontWeight: '500'
+                                                        fontWeight: '500',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px'
                                                     }}
                                                 >
-                                                    <Icons.Delete size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Xóa
+                                                    <Icons.Delete size={16} /> Delete
                                                 </button>
                                             </div>
                                         </td>
@@ -381,10 +407,10 @@ const ProductL = () => {
                 isOpen={confirmModal.isOpen}
                 onClose={() => setConfirmModal({ isOpen: false, id: null })}
                 onConfirm={confirmDelete}
-                title="Xác nhận xóa"
-                message="Bạn có chắc chắn muốn xóa sản phẩm này?"
-                confirmText="Xóa"
-                cancelText="Hủy"
+                title="Confirm Delete"
+                message="Are you sure you want to delete this product?"
+                confirmText="Delete"
+                cancelText="Cancel"
                 type="danger"
             />
 
@@ -403,6 +429,13 @@ const ProductL = () => {
                         showImagesOnly={true}
                     />
                 </Modal>
+            )}
+
+            {viewingProductId && (
+                <ProductView
+                    productId={viewingProductId}
+                    onClose={() => setViewingProductId(null)}
+                />
             )}
         </div>
     );

@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
-import { orderAPI, supplierAPI } from '../services/api';
+import { orderAPI, supplierAPI, paymentAPI } from '../services/api';
 import { useRole } from '../src/hooks/useRole';
 import { useToast } from '../src/contexts/ToastContext';
 import { Icons } from '../src/utils/icons';
+import { BUTTON_COLORS } from '../src/utils/buttonColors';
 import Pagination from '../src/components/Pagination';
 import ExportImportButtons from './ExportImportButtons';
 import ConfirmationModal from '../src/components/ConfirmationModal';
@@ -22,11 +23,41 @@ const OrderL = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState(''); // Filter by order type
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, id: null });
+    const [orderPaymentStatus, setOrderPaymentStatus] = useState({}); // { orderId: { isFullyPaid: boolean } }
 
     useEffect(() => {
         fetchOrders();
         fetchSuppliers();
     }, []);
+
+    // Fetch payment status for all sale orders
+    useEffect(() => {
+        const fetchPaymentStatuses = async () => {
+            const saleOrders = orders.filter(o =>
+                (o.type || '').toLowerCase() === 'sale' || (o.type || '').toLowerCase() === 'sell'
+            );
+
+            const statusMap = {};
+            for (const order of saleOrders) {
+                try {
+                    const response = await paymentAPI.getOrderPaymentSummary(order.id);
+                    if (response.success && response.data) {
+                        statusMap[order.id] = {
+                            isFullyPaid: response.data.isFullyPaid || false
+                        };
+                    }
+                } catch (err) {
+                    // Ignore errors, default to unpaid
+                    statusMap[order.id] = { isFullyPaid: false };
+                }
+            }
+            setOrderPaymentStatus(statusMap);
+        };
+
+        if (orders.length > 0) {
+            fetchPaymentStatuses();
+        }
+    }, [orders]);
 
     const fetchSuppliers = async () => {
         try {
@@ -60,103 +91,6 @@ const OrderL = () => {
         setConfirmModal({ isOpen: true, id });
     };
 
-    // Unused function - kept for future use
-    // const handleShowBills = async (orderId) => {
-    //     try {
-    //         let bills = [];
-    //         if (orderId) {
-    //             // Show bills for specific order
-    //             const response = await billAPI.getBillsByOrderId(orderId);
-    //             if (response.success) {
-    //                 bills = response.data || [];
-    //             } else {
-    //                 showError('Failed to fetch bills: ' + response.message);
-    //                 return;
-    //             }
-    //         } else {
-    //             // Show all bills
-    //             const response = await billAPI.getAllBills();
-    //             if (response.success) {
-    //                 bills = response.data || [];
-    //             } else {
-    //                 showError('Failed to fetch bills: ' + response.message);
-    //                 return;
-    //             }
-    //         }
-
-    //         // Fetch all payments to check bill payment status
-    //         const paymentsResponse = await paymentAPI.getAllPayments();
-    //         const allPayments = paymentsResponse.success ? (paymentsResponse.data || []) : [];
-
-    //         // Categorize bills into paid and unpaid
-    //         const paidBills = [];
-    //         const unpaidBills = [];
-
-    //         for (const bill of bills) {
-    //             // Find payments by bill_id first, then fallback to order_id if bill_id is null
-    //             let billPayments = allPayments.filter(p => 
-    //                 (p.bill_id === bill.id || p.billId === bill.id) && 
-    //                 (p.bill_id || p.billId) // Only if bill_id exists
-    //             );
-                
-    //             // If no payments found by bill_id, try to find by order_id
-    //             if (billPayments.length === 0) {
-    //                 const billOrderId = bill.order_id || bill.orderId;
-    //                 billPayments = allPayments.filter(p => 
-    //                     (p.order_id === billOrderId || p.orderId === billOrderId)
-    //                 );
-    //             }
-                
-    //             const totalPaid = billPayments
-    //                 .filter(p => {
-    //                     const status = p.payment_status || p.paymentStatus;
-    //                     return status === 'completed';
-    //                 })
-    //                 .reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-                
-    //             const billTotal = parseFloat(bill.total_amount || bill.totalAmount || 0);
-    //             const isPaid = billTotal > 0 && totalPaid >= billTotal;
-
-    //             // Debug logging
-    //             console.log('Bill payment check:', {
-    //                 billId: bill.id,
-    //                 orderId: bill.order_id || bill.orderId,
-    //                 billTotal,
-    //                 totalPaid,
-    //                 isPaid,
-    //                 billStatus: bill.status,
-    //                 paymentsFound: billPayments.length,
-    //                 payments: billPayments.map(p => ({ 
-    //                     id: p.id, 
-    //                     amount: p.amount, 
-    //                     status: p.payment_status || p.paymentStatus, 
-    //                     bill_id: p.bill_id || p.billId,
-    //                     order_id: p.order_id || p.orderId
-    //                 }))
-    //             });
-
-    //             if (isPaid || bill.status === 'paid') {
-    //                 paidBills.push(bill);
-    //             } else if (bill.status !== 'cancelled') {
-    //                 unpaidBills.push(bill);
-    //             }
-    //         }
-
-    //         setShowBillsModal({ 
-    //             isOpen: true, 
-    //             orderId: orderId || 'All Orders', 
-    //             bills: bills,
-    //             paidBills: paidBills,
-    //             unpaidBills: unpaidBills
-    //         });
-    //         // Reset toggle states when opening modal
-    //         setShowPaidBills(true);
-    //         setShowUnpaidBills(true);
-    //     } catch (err) {
-    //         showError('Failed to fetch bills: ' + (err.response?.data?.error || err.message));
-    //     }
-    // };
-
     const confirmDelete = async () => {
         const id = confirmModal.id;
         try {
@@ -177,14 +111,14 @@ const OrderL = () => {
         // Filter out gateway_payment orders (these are temporary orders created for bills/payments)
         // These should only appear in "Show Bills", not in the orders list
         let validOrders = orders.filter(o => o.type !== 'gateway_payment');
-        
+
         // Filter by order type
         if (filterType) {
-            validOrders = validOrders.filter(o => 
+            validOrders = validOrders.filter(o =>
                 (o.type || '').toLowerCase() === filterType.toLowerCase()
             );
         }
-        
+
         // Filter by search term
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
@@ -196,7 +130,7 @@ const OrderL = () => {
                 (o.user_id || o.userId || o.u_id || o.uId)?.toLowerCase().includes(term)
             );
         }
-        
+
         return validOrders;
     }, [orders, searchTerm, filterType]);
 
@@ -435,16 +369,31 @@ const OrderL = () => {
                                     >
                                         <td style={{ padding: '14px 16px', color: '#333', fontSize: '14px', fontWeight: '500' }}>{order.id}</td>
                                         <td style={{ padding: '14px 16px', color: '#333', fontSize: '14px' }}>
-                                            <span style={{
-                                                padding: '4px 8px',
-                                                borderRadius: '4px',
-                                                fontSize: '12px',
-                                                fontWeight: '600',
-                                                backgroundColor: (order.type || '').toLowerCase() === 'sale' ? '#dbeafe' : (order.type || '').toLowerCase() === 'import' ? '#dcfce7' : '#f3f4f6',
-                                                color: (order.type || '').toLowerCase() === 'sale' ? '#1e40af' : (order.type || '').toLowerCase() === 'import' ? '#166534' : '#6b7280'
-                                            }}>
-                                                {(order.type || '').toUpperCase() || '-'}
-                                            </span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                                                <span style={{
+                                                    padding: '4px 8px',
+                                                    borderRadius: '4px',
+                                                    fontSize: '12px',
+                                                    fontWeight: '600',
+                                                    backgroundColor: ((order.type || '').toLowerCase() === 'sale' || (order.type || '').toLowerCase() === 'sell') ? '#dbeafe' : (order.type || '').toLowerCase() === 'import' ? '#dcfce7' : '#f3f4f6',
+                                                    color: ((order.type || '').toLowerCase() === 'sale' || (order.type || '').toLowerCase() === 'sell') ? '#1e40af' : (order.type || '').toLowerCase() === 'import' ? '#166534' : '#6b7280'
+                                                }}>
+                                                    {(order.type || '').toUpperCase() || '-'}
+                                                </span>
+                                                {/* Hiển thị dấu tick nếu order type là SALE hoặc SELL và đã thanh toán */}
+                                                {((order.type || '').toLowerCase() === 'sale' || (order.type || '').toLowerCase() === 'sell') && orderPaymentStatus[order.id]?.isFullyPaid && (
+                                                    <span style={{
+                                                        color: '#10b981',
+                                                        fontSize: '12px',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        gap: '4px',
+                                                        fontWeight: '500'
+                                                    }}>
+                                                        ✓ Đã thanh toán
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>{order.date ? new Date(order.date).toLocaleDateString('vi-VN') : <span style={{ color: '#999' }}>-</span>}</td>
                                         <td style={{ padding: '14px 16px', color: '#666', fontSize: '14px' }}>
@@ -469,36 +418,77 @@ const OrderL = () => {
                                         </td>
                                         <td style={{ padding: '14px 16px' }}>
                                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                                <button
-                                                    onClick={() => setEditingId(order.id)}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: '#000',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '500'
-                                                    }}
-                                                >
-                                                    <Icons.Edit size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDelete(order.id)}
-                                                    style={{
-                                                        padding: '6px 12px',
-                                                        background: 'linear-gradient(135deg, #64748b 0%, #475569 100%)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        borderRadius: '6px',
-                                                        cursor: 'pointer',
-                                                        fontSize: '13px',
-                                                        fontWeight: '500'
-                                                    }}
-                                                >
-                                                    <Icons.Delete size={16} style={{ marginRight: '4px', verticalAlign: 'middle' }} /> Delete
-                                                </button>
+                                                {(() => {
+                                                    const isSaleOrder = (order.type || '').toLowerCase() === 'sale' || (order.type || '').toLowerCase() === 'sell';
+                                                    const isFullyPaid = isSaleOrder && orderPaymentStatus[order.id]?.isFullyPaid;
+
+                                                    if (isFullyPaid) {
+                                                        // Show view button only for fully paid sale orders
+                                                        return (
+                                                            <button
+                                                                onClick={() => setEditingId(order.id)}
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    background: BUTTON_COLORS.view,
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    borderRadius: '6px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '13px',
+                                                                    fontWeight: '500',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px'
+                                                                }}
+                                                                title="View details only (fully paid)"
+                                                            >
+                                                                <Icons.Eye size={16} /> View Details
+                                                            </button>
+                                                        );
+                                                    }
+
+                                                    // Normal edit/delete buttons for unpaid or non-sale orders
+                                                    return (
+                                                        <>
+                                                            <button
+                                                                onClick={() => setEditingId(order.id)}
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    background: BUTTON_COLORS.edit,
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    borderRadius: '6px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '13px',
+                                                                    fontWeight: '500',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px'
+                                                                }}
+                                                            >
+                                                                <Icons.Edit size={16} /> Edit
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(order.id)}
+                                                                style={{
+                                                                    padding: '6px 12px',
+                                                                    background: BUTTON_COLORS.delete,
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    borderRadius: '6px',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '13px',
+                                                                    fontWeight: '500',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: '4px'
+                                                                }}
+                                                            >
+                                                                <Icons.Delete size={16} /> Delete
+                                                            </button>
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                         </td>
                                     </tr>

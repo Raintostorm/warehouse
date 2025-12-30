@@ -91,9 +91,10 @@ app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/admin-notifications', require('./routes/adminNotifications'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/chatbot', require('./routes/chatbot'));
-app.use('/api/inventory', require('./routes/inventory'));
-app.use('/api/stock-transfers', require('./routes/stock-transfers'));
-app.use('/api/low-stock-alerts', require('./routes/low-stock-alerts'));
+// Inventory routes disabled - tables removed (stock_history, stock_transfers, low_stock_alerts)
+// app.use('/api/inventory', require('./routes/inventory'));
+// app.use('/api/stock-transfers', require('./routes/stock-transfers'));
+// app.use('/api/low-stock-alerts', require('./routes/low-stock-alerts'));
 app.use('/api/files', require('./routes/files'));
 
 // Serve uploaded files statically

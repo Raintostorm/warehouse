@@ -18,7 +18,7 @@ const WarehouseL = lazy(() => import('../components/WarehouseL'));
 const CWarehouse = lazy(() => import('../components/CWarehouse'));
 const OrderL = lazy(() => import('../components/OrderL'));
 const COrder = lazy(() => import('../components/COrder'));
-const BillL = lazy(() => import('../components/BillL'));
+// BillL đã được xóa - bills không còn được sử dụng
 const Payments = lazy(() => import('../components/Payments'));
 const PaymentCallback = lazy(() => import('../components/PaymentCallback'));
 const ProductL = lazy(() => import('../components/ProductL'));
@@ -32,7 +32,7 @@ const Settings = lazy(() => import('../components/Settings'));
 const VideoCallList = lazy(() => import('./components/VideoCallList'));
 const AdminNotificationPanel = lazy(() => import('./components/AdminNotificationPanel'));
 const CustomChatbot = lazy(() => import('./components/CustomChatbot'));
-const InventoryManagement = lazy(() => import('../components/InventoryManagement'));
+// InventoryManagement removed - warehouse info now shown in ProductView
 const AnalyticsDashboard = lazy(() => import('../components/AnalyticsDashboard'));
 
 function App() {
@@ -437,9 +437,7 @@ function App() {
                 <OrderL key={`order-${refreshKey}`} />
               </>
             )}
-            {activeTab === 'bills' && (
-              <BillL key={`bill-${refreshKey}`} />
-            )}
+            {/* Bills tab đã được xóa - bills không còn được sử dụng */}
             {activeTab === 'payments' && (
               <Payments />
             )}
@@ -449,9 +447,7 @@ function App() {
                 <ProductL key={`product-${refreshKey}`} />
               </>
             )}
-            {activeTab === 'inventory' && (
-              <InventoryManagement />
-            )}
+            {/* Inventory removed - warehouse info now shown in ProductView */}
             {activeTab === 'analytics' && (
               <AnalyticsDashboard />
             )}
