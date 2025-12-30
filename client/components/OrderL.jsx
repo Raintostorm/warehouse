@@ -46,7 +46,7 @@ const OrderL = () => {
                             isFullyPaid: response.data.isFullyPaid || false
                         };
                     }
-                } catch (err) {
+                } catch {
                     // Ignore errors, default to unpaid
                     statusMap[order.id] = { isFullyPaid: false };
                 }
