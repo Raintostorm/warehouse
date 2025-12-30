@@ -6,16 +6,6 @@ const auditLogger = require('../utils/auditLogger');
 const logger = require('../utils/logger');
 const { sendSuccess, sendError } = require('../utils/controllerHelper');
 
-/**
- * Helper function to update bill status after payment
- * DISABLED: Bills đã được disable, payments link trực tiếp với orders
- */
-async function updateBillStatusAfterPayment(orderId, actorInfo, paymentAmount = null) {
-    // Bills đã được disable - không cần update bill status nữa
-    // Payment status có thể check trực tiếp từ payments table qua order_id
-    return;
-}
-
 const PaymentsC = {
     getAllPayments: async (req, res) => {
         try {
@@ -81,12 +71,6 @@ const PaymentsC = {
                 req
             });
 
-            // Update bill status if payment is completed
-            if (payment.payment_status === 'completed' && payment.order_id) {
-                const paymentAmount = payment.amount ? parseFloat(payment.amount) : null;
-                await updateBillStatusAfterPayment(payment.order_id, actorInfo, paymentAmount);
-            }
-
             return sendSuccess(res, payment, 'Payment created successfully', 201);
         } catch (error) {
             return sendError(res, error, 'Failed to create payment');
@@ -109,12 +93,6 @@ const PaymentsC = {
                 newData: payment,
                 req
             });
-
-            // Update bill status if payment status changed to completed
-            if (payment.payment_status === 'completed' && payment.order_id) {
-                const paymentAmount = payment.amount ? parseFloat(payment.amount) : null;
-                await updateBillStatusAfterPayment(payment.order_id, actorInfo, paymentAmount);
-            }
 
             return sendSuccess(res, payment, 'Payment updated successfully');
         } catch (error) {
@@ -321,9 +299,6 @@ const PaymentsC = {
                             transactionId: verification.transactionId,
                             amount: payment.amount
                         });
-
-                        // Update bill status after successful payment
-                        await updateBillStatusAfterPayment(orderIdToUse, actorInfo, amount);
                     } catch (createError) {
                         logger.error('Failed to create VNPay payment record', {
                             error: createError.message,
@@ -337,11 +312,6 @@ const PaymentsC = {
                         paymentId: payment.id,
                         transactionId: verification.transactionId
                     });
-                    
-                    // Still update bill status in case it wasn't updated before
-                    const orderIdToUse = verification.orderId || verification.txnRef;
-                    const paymentAmount = payment.amount ? parseFloat(payment.amount) : null;
-                    await updateBillStatusAfterPayment(orderIdToUse, getActor(req), paymentAmount);
                 }
 
                 // Redirect to frontend success page
@@ -484,19 +454,11 @@ const PaymentsC = {
                             transactionId: verification.transactionId,
                             amount: payment.amount
                         });
-
-                        // Update bill status after successful payment
-                        await updateBillStatusAfterPayment(orderIdToUse, actorInfo, verification.amount);
                     } else {
                         logger.info('VNPay payment already exists (IPN)', {
                             paymentId: payment.id,
                             transactionId: verification.transactionId
                         });
-                        
-                        // Still update bill status in case it wasn't updated before
-                        const orderIdToUse = verification.orderId || verification.txnRef;
-                        const paymentAmount = payment.amount ? parseFloat(payment.amount) : null;
-                        await updateBillStatusAfterPayment(orderIdToUse, getActor(req), paymentAmount);
                     }
                 } catch (dbError) {
                     logger.error('Failed to create/update payment from IPN', {
@@ -555,9 +517,6 @@ const PaymentsC = {
                     req
                 });
 
-                // Update bill status after successful payment
-                await updateBillStatusAfterPayment(verification.orderId, actorInfo, verification.amount);
-
                 return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/success?paymentId=${payment.id}&gateway=momo`);
             } else {
                 return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/failed?gateway=momo&message=${encodeURIComponent(verification.message)}`);
@@ -611,9 +570,6 @@ const PaymentsC = {
                     newData: payment,
                     req
                 });
-
-                // Update bill status after successful payment
-                await updateBillStatusAfterPayment(orderId, actorInfo);
 
                 return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/success?paymentId=${payment.id}&gateway=zalopay`);
             } else {

@@ -59,12 +59,6 @@ uh/
 - ✅ **Customer Analytics** - Phân tích khách hàng (top customers, purchase patterns)
 - ✅ **Supplier Analytics** - Phân tích nhà cung cấp
 
-### Bills Management
-- ✅ **Bill Generation** - Tạo hóa đơn từ orders với PDF export
-- ✅ **Bill Tracking** - Theo dõi trạng thái thanh toán
-- ✅ **Payment Integration** - Liên kết bills với payments
-- ✅ **Unpaid Bills Filter** - Lọc bills chưa thanh toán
-
 ### Security & Quality
 - ✅ **Role-Based Access Control (RBAC)**
 - ✅ **JWT Authentication**
@@ -140,7 +134,6 @@ Xem chi tiết: [Init Database Guide](./docs/INIT_DATABASE_GUIDE.md)
 5. **Chạy Migrations (Nếu cần):**
 ```bash
 cd server
-npm run migrate:bills          # Migration cho bills table
 npm run migrate:inventory      # Migration cho inventory tables
 ```
 
@@ -207,7 +200,6 @@ npm start              # Start server
 npm run dev            # Start với nodemon (development)
 npm run init:db        # Khởi tạo database
 npm test               # Chạy tests
-npm run migrate:bills   # Migration cho bills table
 npm run migrate:inventory  # Migration cho inventory tables
 npm run seed:products  # Thêm sản phẩm mẫu (92 products)
 ```
@@ -253,15 +245,6 @@ API endpoints được tổ chức theo RESTful conventions:
 - **Orders**: `GET /api/orders`, `POST /api/orders`, `GET /api/orders/:id`, `PUT /api/orders/:id`, `DELETE /api/orders/:id`
 - **Payments**: `GET /api/payments`, `POST /api/payments`, `GET /api/payments/:id`, `PUT /api/payments/:id`, `DELETE /api/payments/:id`
 - **Suppliers**: `GET /api/suppliers`, `POST /api/suppliers`, `GET /api/suppliers/:id`, `PUT /api/suppliers/:id`, `DELETE /api/suppliers/:id`
-
-### Bills Management
-- `GET /api/bills` - Lấy tất cả bills
-- `GET /api/bills/unpaid` - Lấy bills chưa thanh toán
-- `GET /api/bills/:id` - Lấy bill theo ID
-- `GET /api/bills/order/:orderId` - Lấy bills theo order ID
-- `POST /api/bills` - Tạo bill mới (admin only)
-- `PUT /api/bills/:id` - Cập nhật bill (admin only)
-- `DELETE /api/bills/:id` - Xóa bill (admin only)
 
 ### Inventory Management
 - `GET /api/inventory/history` - Lấy lịch sử thay đổi tồn kho

@@ -1,5 +1,6 @@
 const OrdersS = require('../services/ordersS');
-const generateBillS = require('../services/generateBillS');
+// Generate bill functionality removed - bills module disabled
+// const generateBillS = require('../services/generateBillS');
 const getActor = require('../utils/getActor');
 const auditLogger = require('../utils/auditLogger');
 const { sendSuccess, sendError } = require('../utils/controllerHelper');
@@ -142,31 +143,9 @@ const OrdersC = {
         } catch (error) {
             return sendError(res, error, 'Failed to delete order');
         }
-    },
-    generateBill: async (req, res) => {
-        try {
-            const { id } = req.params;
-            const { orderIds, productIds } = req.body; // Support multiple orderIds or single id
-
-            // Support both single orderId (from params) and multiple orderIds (from body)
-            const ordersToProcess = orderIds && orderIds.length > 0 ? orderIds : [id];
-
-            const doc = await generateBillS.generateBill(ordersToProcess, productIds, req);
-
-            // Set headers for PDF download
-            res.setHeader('Content-Type', 'application/pdf');
-            const filename = ordersToProcess.length === 1
-                ? `bill-${ordersToProcess[0]}-${Date.now()}.pdf`
-                : `bill-${ordersToProcess.join('-')}-${Date.now()}.pdf`;
-            res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-
-            // Pipe PDF to response
-            doc.pipe(res);
-            doc.end();
-        } catch (error) {
-            return sendError(res, error, 'Failed to generate bill');
-        }
     }
+    // Generate bill functionality removed - bills module disabled
+    // generateBill: async (req, res) => { ... }
 };
 
 module.exports = OrdersC;

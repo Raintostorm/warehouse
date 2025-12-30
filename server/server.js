@@ -70,7 +70,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/products', require('./routes/products'));
 app.use('/api/orders', require('./routes/orders'));
-app.use('/api/bills', require('./routes/bills'));
+// Bills module removed - payments link directly to orders
+// app.use('/api/bills', require('./routes/bills'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/suppliers', require('./routes/suppliers'));
 app.use('/api/supplier-import-history', require('./routes/supplierImportHistory'));

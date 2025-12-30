@@ -251,18 +251,8 @@ export const orderAPI = {
     deleteOrder: async (id) => {
         const response = await api.delete(`/orders/${id}`);
         return response.data;
-    },
-    generateBill: async (orderIds, productIds = null) => {
-        // Support both single orderId (string) and multiple orderIds (array)
-        const orderIdArray = Array.isArray(orderIds) ? orderIds : [orderIds];
-        const firstOrderId = orderIdArray[0];
-
-        const response = await api.post(`/orders/${firstOrderId}/generate-bill`,
-            { orderIds: orderIdArray, productIds },
-            { responseType: 'blob' }
-        );
-        return response;
     }
+    // generateBill removed - bills module disabled
 };
 
 // billAPI đã được xóa - bills không còn được sử dụng

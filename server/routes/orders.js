@@ -18,8 +18,8 @@ router.post('/', apiLimiter, roleMiddleware('admin'), OrdersC.createOrder);
 router.put('/:id', roleMiddleware('admin'), OrdersC.updateOrder);
 router.delete('/:id', roleMiddleware('admin'), OrdersC.deleteOrder);
 
-// Generate bill - có thể cho phép nhiều roles
-router.post('/:id/generate-bill', OrdersC.generateBill);
+// Generate bill endpoint removed - bills module disabled
+// router.post('/:id/generate-bill', OrdersC.generateBill);
 
 // Stock validation endpoint (with warehouse)
 router.post('/validate-stock', async (req, res) => {
